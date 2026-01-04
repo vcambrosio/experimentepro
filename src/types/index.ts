@@ -128,6 +128,7 @@ export interface ConfiguracaoEmpresa {
   id: string;
   nome_empresa: string;
   logo_url?: string;
+  logo_pdf_url?: string;
   telefone?: string;
   email?: string;
   endereco?: string;

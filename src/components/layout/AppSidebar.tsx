@@ -1,16 +1,19 @@
-import { 
-  LayoutDashboard, 
-  Users, 
-  Package, 
-  FolderOpen, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Users,
+  Package,
+  FolderOpen,
+  FileText,
   ShoppingCart,
   Settings,
   LogOut,
-  TrendingUp
+  TrendingUp,
+  Building2,
+  Shield
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
 import {
   Sidebar,
   SidebarContent,
@@ -28,22 +31,23 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const menuItems = [
   { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { title: 'Pedidos', icon: ShoppingCart, path: '/pedidos' },
   { title: 'Orçamentos', icon: FileText, path: '/orcamentos' },
+  { title: 'Pedidos', icon: ShoppingCart, path: '/pedidos' },
   { title: 'Clientes', icon: Users, path: '/clientes' },
   { title: 'Produtos', icon: Package, path: '/produtos' },
   { title: 'Categorias', icon: FolderOpen, path: '/categorias' },
-  { title: 'Configurações', icon: Settings, path: '/configuracoes' },
 ];
 
 const adminMenuItems = [
   { title: 'Financeiro', icon: TrendingUp, path: '/financeiro' },
+  { title: 'Configurações', icon: Settings, path: '/configuracoes' },
 ];
 
 export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, isAdmin, signOut } = useAuth();
+  const { data: config } = useConfiguracaoEmpresa();
 
   const handleSignOut = async () => {
     await signOut();
@@ -61,11 +65,21 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
-            EP
-          </div>
+          {config?.logo_url ? (
+            <img
+              src={config.logo_url}
+              alt="Logo"
+              className="h-10 w-10 rounded-lg object-contain bg-primary"
+            />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
+              EP
+            </div>
+          )}
           <div className="flex flex-col">
-            <span className="font-semibold text-foreground">Experimente Pro</span>
+            <span className="font-semibold text-foreground">
+              {config?.nome_empresa || 'Experimente Pro'}
+            </span>
             <span className="text-xs text-muted-foreground">
               {isAdmin ? 'Administrador' : 'Usuário'}
             </span>
@@ -96,12 +110,15 @@ export function AppSidebar() {
 
         {isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupLabel className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Administração
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {adminMenuItems.map((item) => (
                   <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton 
+                    <SidebarMenuButton
                       onClick={() => navigate(item.path)}
                       isActive={location.pathname === item.path}
                       className="cursor-pointer transition-all duration-200 hover:bg-secondary hover:text-primary data-[active=true]:bg-primary-light data-[active=true]:text-primary-foreground"

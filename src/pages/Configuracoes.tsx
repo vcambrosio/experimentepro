@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { 
-  Settings, 
-  Building2, 
-  Phone, 
-  Mail, 
-  MapPin, 
+import {
+  Settings,
+  Building2,
+  Phone,
+  Mail,
+  MapPin,
   Calendar,
   Save,
   Loader2,
@@ -17,11 +17,20 @@ import {
   User,
   Users,
   Crown,
-  UserMinus
+  UserMinus,
+  Upload,
+  Image as ImageIcon,
+  X,
+  UserPlus,
+  Key,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { useConfiguracaoEmpresa, useUpdateConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
-import { useUsers, useUpdateUserRole } from '@/hooks/useUsers';
+import { useUsers, useUpdateUserRole, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,6 +52,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
   Form,
   FormControl,
   FormDescription,
@@ -62,21 +79,55 @@ const empresaSchema = z.object({
 
 type EmpresaFormData = z.infer<typeof empresaSchema>;
 
+const usuarioSchema = z.object({
+  email: z.string().email('Email inválido'),
+  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+  fullName: z.string().min(1, 'Nome completo é obrigatório'),
+  role: z.enum(['admin', 'user']),
+});
+
+type UsuarioFormData = z.infer<typeof usuarioSchema>;
+
+const editUsuarioSchema = z.object({
+  fullName: z.string().min(1, 'Nome completo é obrigatório'),
+  email: z.string().email('Email inválido'),
+});
+
+type EditUsuarioFormData = z.infer<typeof editUsuarioSchema>;
+
+type UploadType = 'logo_sistema' | 'logo_pdf';
+
 export default function Configuracoes() {
   const { user, profile, role, isAdmin, signOut } = useAuth();
   const { data: config, isLoading } = useConfiguracaoEmpresa();
   const { data: users, isLoading: loadingUsers } = useUsers();
   const updateConfig = useUpdateConfiguracaoEmpresa();
   const updateUserRole = useUpdateUserRole();
+  const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
   
   const [activeTab, setActiveTab] = useState('empresa');
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     userId: string;
     userName: string;
-    action: 'promote' | 'demote';
+    action: 'promote' | 'demote' | 'delete';
   }>({ open: false, userId: '', userName: '', action: 'promote' });
-
+  const [editDialog, setEditDialog] = useState<{
+    open: boolean;
+    userId: string;
+    fullName: string;
+    email: string;
+  }>({ open: false, userId: '', fullName: '', email: '' });
+  const [uploadDialog, setUploadDialog] = useState<{
+    open: boolean;
+    type: UploadType;
+  }>({ open: false, type: 'logo_sistema' });
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [userDialog, setUserDialog] = useState<{ open: boolean }>({ open: false });
+  
   const form = useForm<EmpresaFormData>({
     resolver: zodResolver(empresaSchema),
     defaultValues: {
@@ -88,6 +139,24 @@ export default function Configuracoes() {
     },
   });
 
+  const userForm = useForm<UsuarioFormData>({
+    resolver: zodResolver(usuarioSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      fullName: '',
+      role: 'user',
+    },
+  });
+
+  const editUserForm = useForm<EditUsuarioFormData>({
+    resolver: zodResolver(editUsuarioSchema),
+    defaultValues: {
+      fullName: '',
+      email: '',
+    },
+  });
+  
   useEffect(() => {
     if (config) {
       form.reset({
@@ -100,6 +169,64 @@ export default function Configuracoes() {
     }
   }, [config, form]);
 
+  useEffect(() => {
+    if (editDialog.open) {
+      editUserForm.reset({
+        fullName: editDialog.fullName,
+        email: editDialog.email,
+      });
+    }
+  }, [editDialog.open, editDialog.fullName, editDialog.email, editUserForm]);
+
+  const handleUploadLogo = async (event: React.ChangeEvent<HTMLInputElement>, type: UploadType) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+
+    try {
+      console.log('Iniciando upload:', { fileName: file.name, fileSize: file.size, fileType: file.type });
+
+      // Criar FormData para enviar o arquivo
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Fazer upload para a API local
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Erro na resposta do servidor:', errorText);
+        const errorData = errorText ? JSON.parse(errorText) : {};
+        throw new Error(errorData.error || `Erro HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Upload realizado com sucesso:', data);
+
+      // Atualizar configuração com a URL retornada
+      await updateConfig.mutateAsync({
+        id: config?.id,
+        [type === 'logo_sistema' ? 'logo_url' : 'logo_pdf_url']: data.url,
+      });
+
+      toast.success('Logo atualizada com sucesso!');
+    } catch (error: any) {
+      console.error('Error uploading logo:', error);
+      const errorMessage = error?.message || 'Erro desconhecido';
+      
+      // Mostrar erro no toast e também em um alert para facilitar a cópia
+      toast.error(`Erro ao fazer upload da logo. Veja o console para detalhes.`);
+      alert(`Erro ao fazer upload da logo:\n\n${errorMessage}\n\nVerifique o console (F12) para mais detalhes.`);
+    } finally {
+      setUploading(false);
+      setUploadDialog({ open: false, type: 'logo_sistema' });
+    }
+  };
+
   const onSubmit = async (data: EmpresaFormData) => {
     await updateConfig.mutateAsync({
       id: config?.id,
@@ -108,6 +235,22 @@ export default function Configuracoes() {
       email: data.email || undefined,
       endereco: data.endereco || undefined,
       validade_orcamento_dias: data.validade_orcamento_dias,
+    });
+  };
+
+  const onSubmitUser = async (data: UsuarioFormData) => {
+    await createUser.mutateAsync({
+      email: data.email,
+      password: data.password,
+      fullName: data.fullName,
+      role: data.role as any,
+    });
+    setUserDialog({ open: false });
+    userForm.reset({
+      email: '',
+      password: '',
+      fullName: '',
+      role: 'user',
     });
   };
 
@@ -120,6 +263,28 @@ export default function Configuracoes() {
     const newRole = confirmDialog.action === 'promote' ? 'admin' : 'user';
     await updateUserRole.mutateAsync({ userId: confirmDialog.userId, newRole });
     setConfirmDialog({ open: false, userId: '', userName: '', action: 'promote' });
+  };
+
+  const handleEditUser = (userId: string, fullName: string, email: string) => {
+    setEditDialog({ open: true, userId, fullName, email });
+  };
+
+  const handleDeleteUser = (userId: string, userName: string) => {
+    setConfirmDialog({ open: true, userId, userName, action: 'delete' });
+  };
+
+  const confirmDeleteUser = async () => {
+    await deleteUser.mutateAsync(confirmDialog.userId);
+    setConfirmDialog({ open: false, userId: '', userName: '', action: 'promote' });
+  };
+
+  const onSubmitEditUser = async (data: EditUsuarioFormData) => {
+    await updateUser.mutateAsync({
+      userId: editDialog.userId,
+      fullName: data.fullName,
+      email: data.email,
+    });
+    setEditDialog({ open: false, userId: '', fullName: '', email: '' });
   };
 
   const getInitials = (name?: string, email?: string) => {
@@ -290,6 +455,87 @@ export default function Configuracoes() {
                 </CardContent>
               </Card>
 
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-primary" />
+                    Logomarcas
+                  </CardTitle>
+                  <CardDescription>
+                    Faça upload das logomarcas utilizadas no sistema e documentos
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Logo do Sistema</label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Utilizada no canto superior esquerdo do sistema
+                      </p>
+                      {config?.logo_url ? (
+                        <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
+                          <img 
+                            src={config.logo_url} 
+                            alt="Logo do sistema" 
+                            className="h-16 w-auto max-w-[200px] object-contain"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setUploadDialog({ open: true, type: 'logo_sistema' })}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Alterar
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="w-full h-32 border-2 border-dashed"
+                          onClick={() => setUploadDialog({ open: true, type: 'logo_sistema' })}
+                        >
+                          <Upload className="h-8 w-8 mb-2 text-muted-foreground" />
+                          <span className="text-sm">Fazer upload da logo</span>
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Logo do Orçamento (PDF)</label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Utilizada no cabeçalho do orçamento em PDF
+                      </p>
+                      {config?.logo_pdf_url ? (
+                        <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
+                          <img 
+                            src={config.logo_pdf_url} 
+                            alt="Logo do orçamento" 
+                            className="h-16 w-auto max-w-[200px] object-contain"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setUploadDialog({ open: true, type: 'logo_pdf' })}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Alterar
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="w-full h-32 border-2 border-dashed"
+                          onClick={() => setUploadDialog({ open: true, type: 'logo_pdf' })}
+                        >
+                          <Upload className="h-8 w-8 mb-2 text-muted-foreground" />
+                          <span className="text-sm">Fazer upload da logo</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               <div className="flex justify-end">
                 <Button type="submit" disabled={updateConfig.isPending}>
                   {updateConfig.isPending ? (
@@ -327,7 +573,7 @@ export default function Configuracoes() {
                   <label className="text-sm font-medium text-muted-foreground">Email</label>
                   <p className="font-medium">{user?.email}</p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground">Nome</label>
                   <p className="font-medium">{profile?.full_name || 'Não informado'}</p>
@@ -398,6 +644,12 @@ export default function Configuracoes() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex justify-end mb-4">
+                  <Button onClick={() => setUserDialog({ open: true })}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Novo Usuário
+                  </Button>
+                </div>
                 {loadingUsers ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map(i => (
@@ -439,33 +691,53 @@ export default function Configuracoes() {
                               </p>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-3">
                             <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
                               {u.role === 'admin' ? 'Admin' : 'Usuário'}
                             </Badge>
-                            
+
                             {u.id !== user?.id && (
-                              <Button
-                                variant={u.role === 'admin' ? 'outline' : 'default'}
-                                size="sm"
-                                onClick={() => handleRoleChange(u.id, u.full_name || u.email, u.role)}
-                                disabled={updateUserRole.isPending}
-                              >
-                                {u.role === 'admin' ? (
-                                  <>
-                                    <UserMinus className="h-4 w-4 mr-2" />
-                                    Rebaixar
-                                  </>
-                                ) : (
-                                  <>
-                                    <Crown className="h-4 w-4 mr-2" />
-                                    Promover
-                                  </>
-                                )}
-                              </Button>
+                              <>
+                                <Button
+                                  variant={u.role === 'admin' ? 'outline' : 'default'}
+                                  size="sm"
+                                  onClick={() => handleRoleChange(u.id, u.full_name || u.email, u.role)}
+                                  disabled={updateUserRole.isPending}
+                                >
+                                  {u.role === 'admin' ? (
+                                    <>
+                                      <UserMinus className="h-4 w-4 mr-2" />
+                                      Rebaixar
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Crown className="h-4 w-4 mr-2" />
+                                      Promover
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditUser(u.id, u.full_name || '', u.email)}
+                                  disabled={updateUser.isPending}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteUser(u.id, u.full_name || u.email)}
+                                  disabled={deleteUser.isPending}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Excluir
+                                </Button>
+                              </>
                             )}
-                            
+                             
                             {u.id === user?.id && (
                               <Badge variant="outline" className="text-xs">Você</Badge>
                             )}
@@ -491,19 +763,29 @@ export default function Configuracoes() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmDialog.action === 'promote' ? 'Promover a Administrador' : 'Rebaixar para Usuário'}
+              {confirmDialog.action === 'delete'
+                ? 'Excluir Usuário'
+                : confirmDialog.action === 'promote'
+                  ? 'Promover a Administrador'
+                  : 'Rebaixar para Usuário'
+              }
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDialog.action === 'promote' 
-                ? `Tem certeza que deseja promover "${confirmDialog.userName}" a administrador? Administradores têm acesso total ao sistema, incluindo valores financeiros e gerenciamento de usuários.`
-                : `Tem certeza que deseja rebaixar "${confirmDialog.userName}" para usuário comum? O usuário perderá acesso a funcionalidades administrativas.`
+              {confirmDialog.action === 'delete'
+                ? `Tem certeza que deseja excluir "${confirmDialog.userName}"? Esta ação não pode ser desfeita e removerá todos os dados do usuário do sistema.`
+                : confirmDialog.action === 'promote'
+                  ? `Tem certeza que deseja promover "${confirmDialog.userName}" a administrador? Administradores têm acesso total ao sistema, incluindo valores financeiros e gerenciamento de usuários.`
+                  : `Tem certeza que deseja rebaixar "${confirmDialog.userName}" para usuário comum? O usuário perderá acesso a funcionalidades administrativas.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRoleChange}>
-              {updateUserRole.isPending ? (
+            <AlertDialogAction
+              onClick={confirmDialog.action === 'delete' ? confirmDeleteUser : confirmRoleChange}
+              className={confirmDialog.action === 'delete' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+            >
+              {(updateUserRole.isPending || deleteUser.isPending) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 'Confirmar'
@@ -512,6 +794,240 @@ export default function Configuracoes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Upload Logo Dialog */}
+      <Dialog open={uploadDialog.open} onOpenChange={(open) => setUploadDialog(prev => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-primary" />
+              {uploadDialog.type === 'logo_sistema' ? 'Upload Logo do Sistema' : 'Upload Logo do Orçamento'}
+            </DialogTitle>
+            <DialogDescription>
+              {uploadDialog.type === 'logo_sistema'
+                ? 'Selecione a imagem que será utilizada no canto superior esquerdo do sistema'
+                : 'Selecione a imagem que será utilizada no cabeçalho do orçamento em PDF'
+              }
+            </DialogDescription>
+          </DialogHeader>
+        
+          <div className="space-y-4 py-4">
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={(e) => handleUploadLogo(e, uploadDialog.type)}
+              disabled={uploading}
+              className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:text-foreground file:cursor-pointer"
+            />
+          
+            {uploading && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+                <span>Enviando...</span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUploadDialog({ open: false, type: 'logo_sistema' })}>
+              Cancelar
+            </Button>
+            <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              {uploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Fazer Upload
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={userDialog.open} onOpenChange={(open) => setUserDialog({ open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" />
+              Cadastrar Novo Usuário
+            </DialogTitle>
+            <DialogDescription>
+              Preencha os dados para criar um novo usuário no sistema
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...userForm}>
+            <form onSubmit={userForm.handleSubmit(onSubmitUser)} className="space-y-4">
+              <FormField
+                control={userForm.control}
+                name="fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome Completo *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nome do usuário" autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email *</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="email@exemplo.com" autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Senha *</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••" autoComplete="new-password" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Mínimo 6 caracteres
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={userForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nível de Acesso *</FormLabel>
+                    <FormControl>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value="user"
+                            checked={field.value === 'user'}
+                            onChange={() => field.onChange('user')}
+                            className="w-4 h-4"
+                          />
+                          <span>Usuário</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value="admin"
+                            checked={field.value === 'admin'}
+                            onChange={() => field.onChange('admin')}
+                            className="w-4 h-4"
+                          />
+                          <span>Administrador</span>
+                        </label>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      Administradores têm acesso total ao sistema, incluindo valores financeiros e gerenciamento de usuários.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setUserDialog({ open: false })}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createUser.isPending}>
+                  {createUser.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Criar Usuário
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog(prev => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-primary" />
+              Editar Usuário
+            </DialogTitle>
+            <DialogDescription>
+              Atualize as informações do usuário
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editUserForm}>
+            <form onSubmit={editUserForm.handleSubmit(onSubmitEditUser)} className="space-y-4">
+              <FormField
+                control={editUserForm.control}
+                name="fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome Completo *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nome do usuário" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editUserForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email *</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="email@exemplo.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditDialog({ open: false, userId: '', fullName: '', email: '' })}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={updateUser.isPending}>
+                  {updateUser.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Salvar Alterações
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -39,34 +39,125 @@ export function useUsers() {
   });
 }
 
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ email, password, fullName, role }: { email: string; password: string; fullName: string; role: UserRole }) => {
+      // Create user in Supabase Auth - o profile será criado automaticamente pelo trigger
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (!authData.user) throw new Error('Falha ao criar usuário');
+
+      // Aguardar um momento para o trigger criar o profile
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Set user role usando a função SECURITY DEFINER que bypassa o RLS
+      const { error: roleError } = await supabase.rpc('create_user_role', {
+        p_user_id: authData.user.id,
+        p_role: role,
+      });
+
+      if (roleError) throw roleError;
+
+      return authData.user;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('Usuário criado com sucesso!');
+    },
+    onError: (error: any) => {
+      console.error('Error creating user:', error);
+      toast.error(`Erro ao criar usuário: ${error.message || 'Erro desconhecido'}`);
+    },
+  });
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, fullName, email }: { userId: string; fullName?: string; email?: string }) => {
+      // Atualizar profile do usuário
+      const updates: any = {};
+      if (fullName !== undefined) updates.full_name = fullName;
+      if (email !== undefined) updates.email = email;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      return { userId, fullName, email };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('Usuário atualizado com sucesso!');
+    },
+    onError: (error: any) => {
+      console.error('Error updating user:', error);
+      toast.error(`Erro ao atualizar usuário: ${error.message || 'Erro desconhecido'}`);
+    },
+  });
+}
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      console.log('Iniciando exclusão do usuário:', userId);
+      // Deletar usuário usando a função RPC que deleta do auth.users (CASCADE deleta profile e user_roles)
+      const { data, error } = await supabase.rpc('delete_user', {
+        p_user_id: userId,
+      });
+
+      console.log('Resultado da exclusão:', { data, error });
+
+      if (error) throw error;
+
+      return userId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('Usuário excluído com sucesso!', {
+        duration: 5000,
+      });
+    },
+    onError: (error: any) => {
+      console.error('Error deleting user:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      toast.error(`Erro ao excluir usuário: ${error.message || 'Erro desconhecido'}`, {
+        duration: 10000,
+      });
+    },
+  });
+}
+
 export function useUpdateUserRole() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: UserRole }) => {
-      // Check if user already has a role record
-      const { data: existingRole } = await supabase
-        .from('user_roles')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (existingRole) {
-        // Update existing role
-        const { error } = await supabase
-          .from('user_roles')
-          .update({ role: newRole })
-          .eq('user_id', userId);
-        
-        if (error) throw error;
-      } else {
-        // Insert new role
-        const { error } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role: newRole });
-        
-        if (error) throw error;
-      }
+      // Atualizar role usando a função SECURITY DEFINER que bypassa o RLS
+      const { error } = await supabase.rpc('create_user_role', {
+        p_user_id: userId,
+        p_role: newRole,
+      });
+      
+      if (error) throw error;
 
       return { userId, newRole };
     },

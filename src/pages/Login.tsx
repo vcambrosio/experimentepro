@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signIn } = useAuth();
+  const { data: config } = useConfiguracaoEmpresa();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,10 +52,20 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-light via-secondary to-secondary p-4">
       <Card className="w-full max-w-md shadow-lg border-0">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-2xl font-bold shadow-lg">
-            EP
-          </div>
-          <CardTitle className="text-2xl">Experimente Pro</CardTitle>
+          {config?.logo_url ? (
+            <img
+              src={config.logo_url}
+              alt="Logo"
+              className="mx-auto mb-4 h-16 w-auto max-w-[150px] object-contain"
+            />
+          ) : (
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-2xl font-bold shadow-lg">
+              EP
+            </div>
+          )}
+          <CardTitle className="text-2xl">
+            {config?.nome_empresa || 'Experimente Pro'}
+          </CardTitle>
           <CardDescription>
             Sistema de Gestão de Agendamento e Vendas
           </CardDescription>

@@ -61,6 +61,9 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Visão geral do seu negócio</p>
       </div>
 
+      {/* Calendário */}
+      <CalendarioWidget pedidos={pedidos || []} isLoading={isLoading} />
+
       {/* Cards principais */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-l-4 border-l-warning hover:shadow-md transition-shadow">
@@ -174,9 +177,6 @@ export default function Dashboard() {
           </Card>
         </div>
       )}
-
-      {/* Calendário */}
-      <CalendarioWidget pedidos={pedidos || []} isLoading={isLoading} />
     </div>
   );
 }
