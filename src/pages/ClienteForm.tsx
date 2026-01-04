@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
-import { useCliente, useCreateCliente, useUpdateCliente } from '@/hooks/useClientes';
+import { ArrowLeft, Save, Loader2, Plus, Trash2, Building2 } from 'lucide-react';
+import { useCliente, useCreateCliente, useUpdateCliente, useSetoresCliente, useCreateSetor, useDeleteSetor } from '@/hooks/useClientes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TipoPessoa } from '@/types';
+import { toast } from 'sonner';
 
 const clienteSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório'),
@@ -49,6 +50,14 @@ export default function ClienteForm() {
   const { data: cliente, isLoading } = useCliente(id || '');
   const createCliente = useCreateCliente();
   const updateCliente = useUpdateCliente();
+  
+  // Setores management
+  const { data: setores, isLoading: loadingSetores } = useSetoresCliente(id || '');
+  const createSetor = useCreateSetor();
+  const deleteSetor = useDeleteSetor();
+  
+  const [novoSetor, setNovoSetor] = useState('');
+  const [novoResponsavel, setNovoResponsavel] = useState('');
 
   const form = useForm<ClienteFormData>({
     resolver: zodResolver(clienteSchema),
@@ -108,6 +117,26 @@ export default function ClienteForm() {
   };
 
   const isPending = createCliente.isPending || updateCliente.isPending;
+
+  const handleAddSetor = async () => {
+    if (!id || !novoSetor) {
+      toast.error('Preencha o nome do setor');
+      return;
+    }
+    
+    await createSetor.mutateAsync({
+      cliente_id: id,
+      nome_setor: novoSetor,
+      responsavel: novoResponsavel || undefined,
+    });
+    
+    setNovoSetor('');
+    setNovoResponsavel('');
+  };
+
+  const handleDeleteSetor = async (setorId: string) => {
+    await deleteSetor.mutateAsync(setorId);
+  };
 
   if (isEditing && isLoading) {
     return (
@@ -291,6 +320,88 @@ export default function ClienteForm() {
               />
             </CardContent>
           </Card>
+
+          {/* Setores Card - Only for pessoa jurídica */}
+          {form.watch('tipo_pessoa') === 'juridica' && isEditing && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Setores da Empresa
+                </CardTitle>
+                <CardDescription>
+                  Adicione setores para organizar pedidos por departamento
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Add new setor */}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nome do setor"
+                    value={novoSetor}
+                    onChange={(e) => setNovoSetor(e.target.value)}
+                    disabled={!isEditing}
+                  />
+                  <Input
+                    placeholder="Responsável (opcional)"
+                    value={novoResponsavel}
+                    onChange={(e) => setNovoResponsavel(e.target.value)}
+                    disabled={!isEditing}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleAddSetor}
+                    disabled={!isEditing || !novoSetor || createSetor.isPending}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Setores list */}
+                {loadingSetores ? (
+                  <div className="space-y-2">
+                    {[1, 2].map(i => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : setores && setores.length > 0 ? (
+                  <div className="space-y-2">
+                    {setores.map((setor) => (
+                      <div
+                        key={setor.id}
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                      >
+                        <div>
+                          <p className="font-medium">{setor.nome_setor}</p>
+                          {setor.responsavel && (
+                            <p className="text-sm text-muted-foreground">
+                              Responsável: {setor.responsavel}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteSetor(setor.id)}
+                          disabled={deleteSetor.isPending}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-muted-foreground py-4">
+                    Nenhum setor cadastrado
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="flex justify-end gap-4">
             <Button type="button" variant="outline" onClick={() => navigate('/clientes')}>
