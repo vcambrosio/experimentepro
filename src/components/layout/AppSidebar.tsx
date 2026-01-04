@@ -3,7 +3,6 @@ import {
   Users, 
   Package, 
   FolderOpen, 
-  Calendar, 
   FileText, 
   ShoppingCart,
   Settings,
@@ -29,7 +28,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const menuItems = [
   { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { title: 'Calendário', icon: Calendar, path: '/calendario' },
   { title: 'Pedidos', icon: ShoppingCart, path: '/pedidos' },
   { title: 'Orçamentos', icon: FileText, path: '/orcamentos' },
   { title: 'Clientes', icon: Users, path: '/clientes' },
