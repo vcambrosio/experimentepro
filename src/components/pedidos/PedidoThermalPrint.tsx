@@ -27,7 +27,7 @@ export function useThermalPrint() {
   const printRef = useRef<HTMLDivElement>(null);
 
   const print = (pedido: Pedido, empresaNome?: string, showValues?: boolean) => {
-    const printWindow = window.open('', '_blank', 'width=300,height=600');
+    const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
     const html = `
@@ -37,10 +37,6 @@ export function useThermalPrint() {
   <meta charset="utf-8">
   <title>Pedido - ${format(new Date(pedido.data_hora_entrega), 'dd/MM/yyyy HH:mm')}</title>
   <style>
-    @page {
-      size: 80mm auto;
-      margin: 0;
-    }
     * {
       margin: 0;
       padding: 0;
@@ -174,7 +170,8 @@ export function useThermalPrint() {
     }
   </style>
 </head>
-<body>
+<body style="width: 80mm; overflow: visible; height: auto;">
+  <div class="content-wrapper">
   <div class="header">
     <div class="logo">${empresaNome || 'Experimente Pro'}</div>
     <div class="pedido-num">PEDIDO</div>
@@ -186,7 +183,7 @@ export function useThermalPrint() {
     <div class="value">${pedido.cliente?.nome || '-'}</div>
     ${pedido.setor ? `
     <div style="margin-top: 4px;"><span class="label">Setor:</span></div>
-    <div class="value">${pedido.setor.nome_setor}</div>
+    <div class="value">${pedido.setor.nome_setor}${pedido.setor.responsavel ? ` (${pedido.setor.responsavel})` : ''}</div>
     ` : ''}
   </div>
 
@@ -200,22 +197,17 @@ export function useThermalPrint() {
           <span class="item-qty">${item.quantidade}x</span>
           <span class="item-name">${item.produto?.nome || '-'}</span>
         </div>
-        ${item.descricao_customizada ? `<div class="item-desc">${item.descricao_customizada}</div>` : ''}
+        ${item.descricao_customizada ? `<div class="item-desc">${item.descricao_customizada.split('\n').map(linha => `<div>${linha}</div>`).join('')}</div>` : ''}
         ${item.detalhes ? `<div class="item-obs">Obs: ${item.detalhes}</div>` : ''}
       </div>
     `).join('')}
   </div>
 
   <div class="divider-double"></div>
-
+   
   <div class="status-box">
     <div class="status-label">Status do Pedido</div>
     <div class="status-value">${getStatusLabel(pedido.status)}</div>
-  </div>
-
-  <div class="footer">
-    <div>Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}</div>
-    <div>${empresaNome || 'Experimente Pro'}</div>
   </div>
 </body>
 </html>

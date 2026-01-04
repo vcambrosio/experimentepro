@@ -99,6 +99,12 @@ const styles = StyleSheet.create({
     marginLeft: 25,
     marginTop: 2,
   },
+  itemDescriptionLine: {
+    fontSize: 10,
+    color: '#666666',
+    marginLeft: 25,
+    marginTop: 1,
+  },
   itemDetails: {
     fontSize: 9,
     color: '#888888',
@@ -204,7 +210,7 @@ export function PedidoPDF({
           {setorNome && (
             <View style={styles.clientInfo}>
               <Text style={styles.label}>Setor:</Text>
-              <Text style={styles.value}>{setorNome}</Text>
+              <Text style={styles.value}>{setorNome}{pedido.setor?.responsavel ? ` (${pedido.setor.responsavel})` : ''}</Text>
             </View>
           )}
         </View>
@@ -222,9 +228,11 @@ export function PedidoPDF({
                 <Text style={styles.itemName}>{item.produto?.nome || 'Produto não informado'}</Text>
               </View>
               {item.descricao_customizada && (
-                <Text style={styles.itemDescription}>
-                  {item.descricao_customizada}
-                </Text>
+                <View style={styles.itemDescription}>
+                  {item.descricao_customizada.split('\n').map((linha, idx) => (
+                    <Text key={idx} style={styles.itemDescriptionLine}>{linha}</Text>
+                  ))}
+                </View>
               )}
               {item.detalhes && (
                 <Text style={styles.itemDetails}>
