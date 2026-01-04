@@ -7,7 +7,7 @@ import { ArrowLeft, Save, Loader2, Plus, Trash2, Building2 } from 'lucide-react'
 import { useCliente, useCreateCliente, useUpdateCliente, useSetoresCliente, useCreateSetor, useDeleteSetor } from '@/hooks/useClientes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
   Form,

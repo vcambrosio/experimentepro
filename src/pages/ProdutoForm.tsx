@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
   Form,
@@ -247,7 +247,7 @@ export default function ProdutoForm() {
                     </FormItem>
                   )}
                 />
-              />
+              )}
 
               <FormField
                 control={form.control}
