@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { 
   Settings, 
   Building2, 
@@ -12,9 +14,13 @@ import {
   Save,
   Loader2,
   Shield,
-  User
+  User,
+  Users,
+  Crown,
+  UserMinus
 } from 'lucide-react';
 import { useConfiguracaoEmpresa, useUpdateConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
+import { useUsers, useUpdateUserRole } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +30,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Form,
   FormControl,
@@ -45,11 +63,19 @@ const empresaSchema = z.object({
 type EmpresaFormData = z.infer<typeof empresaSchema>;
 
 export default function Configuracoes() {
-  const { user, profile, role, signOut } = useAuth();
+  const { user, profile, role, isAdmin, signOut } = useAuth();
   const { data: config, isLoading } = useConfiguracaoEmpresa();
+  const { data: users, isLoading: loadingUsers } = useUsers();
   const updateConfig = useUpdateConfiguracaoEmpresa();
+  const updateUserRole = useUpdateUserRole();
   
   const [activeTab, setActiveTab] = useState('empresa');
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    userId: string;
+    userName: string;
+    action: 'promote' | 'demote';
+  }>({ open: false, userId: '', userName: '', action: 'promote' });
 
   const form = useForm<EmpresaFormData>({
     resolver: zodResolver(empresaSchema),
@@ -85,6 +111,24 @@ export default function Configuracoes() {
     });
   };
 
+  const handleRoleChange = (userId: string, userName: string, currentRole: string) => {
+    const action = currentRole === 'admin' ? 'demote' : 'promote';
+    setConfirmDialog({ open: true, userId, userName, action });
+  };
+
+  const confirmRoleChange = async () => {
+    const newRole = confirmDialog.action === 'promote' ? 'admin' : 'user';
+    await updateUserRole.mutateAsync({ userId: confirmDialog.userId, newRole });
+    setConfirmDialog({ open: false, userId: '', userName: '', action: 'promote' });
+  };
+
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    }
+    return email?.slice(0, 2).toUpperCase() || 'U';
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -105,7 +149,7 @@ export default function Configuracoes() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} lg:w-[600px]`}>
           <TabsTrigger value="empresa" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Empresa
@@ -114,6 +158,12 @@ export default function Configuracoes() {
             <User className="h-4 w-4" />
             Minha Conta
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="usuarios" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Usuários
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Empresa Tab */}
@@ -333,7 +383,135 @@ export default function Configuracoes() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Usuários Tab (Admin only) */}
+        {isAdmin && (
+          <TabsContent value="usuarios" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Gerenciar Usuários
+                </CardTitle>
+                <CardDescription>
+                  Visualize e gerencie as permissões dos usuários do sistema
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingUsers ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                        <div className="flex-1">
+                          <Skeleton className="h-4 w-32 mb-2" />
+                          <Skeleton className="h-3 w-48" />
+                        </div>
+                        <Skeleton className="h-9 w-24" />
+                      </div>
+                    ))}
+                  </div>
+                ) : users && users.length > 0 ? (
+                  <ScrollArea className="max-h-[500px]">
+                    <div className="space-y-4">
+                      {users.map((u) => (
+                        <div 
+                          key={u.id} 
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={u.avatar_url} />
+                              <AvatarFallback className="bg-primary text-primary-foreground">
+                                {getInitials(u.full_name, u.email)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium flex items-center gap-2">
+                                {u.full_name || 'Sem nome'}
+                                {u.role === 'admin' && (
+                                  <Crown className="h-4 w-4 text-warning" />
+                                )}
+                              </p>
+                              <p className="text-sm text-muted-foreground">{u.email}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Desde {format(new Date(u.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
+                              {u.role === 'admin' ? 'Admin' : 'Usuário'}
+                            </Badge>
+                            
+                            {u.id !== user?.id && (
+                              <Button
+                                variant={u.role === 'admin' ? 'outline' : 'default'}
+                                size="sm"
+                                onClick={() => handleRoleChange(u.id, u.full_name || u.email, u.role)}
+                                disabled={updateUserRole.isPending}
+                              >
+                                {u.role === 'admin' ? (
+                                  <>
+                                    <UserMinus className="h-4 w-4 mr-2" />
+                                    Rebaixar
+                                  </>
+                                ) : (
+                                  <>
+                                    <Crown className="h-4 w-4 mr-2" />
+                                    Promover
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                            
+                            {u.id === user?.id && (
+                              <Badge variant="outline" className="text-xs">Você</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum usuário encontrado</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDialog.action === 'promote' ? 'Promover a Administrador' : 'Rebaixar para Usuário'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog.action === 'promote' 
+                ? `Tem certeza que deseja promover "${confirmDialog.userName}" a administrador? Administradores têm acesso total ao sistema, incluindo valores financeiros e gerenciamento de usuários.`
+                : `Tem certeza que deseja rebaixar "${confirmDialog.userName}" para usuário comum? O usuário perderá acesso a funcionalidades administrativas.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRoleChange}>
+              {updateUserRole.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Confirmar'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
