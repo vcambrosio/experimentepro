@@ -1,5 +1,5 @@
 # PRD - Experimente Pro
-## Sistema de Gestão de Agendamento e Vendas
+## Sistema de Gestão de Agendamento e Vendas.
 
 ---
 
