@@ -14,7 +14,7 @@ import { ptBR } from 'date-fns/locale';
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
-    fontSize: 10,
+    fontSize: 12,
     padding: 40,
     backgroundColor: '#ffffff',
   },
@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
     // Header fixo que se repete em cada página
   },
   logo: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 700,
     color: '#FF8C42',
     marginBottom: 5,
@@ -42,24 +42,24 @@ const styles = StyleSheet.create({
     height: 80,
   },
   companyInfo: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#666666',
   },
   title: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 700,
     color: '#333333',
     marginBottom: 5,
   },
   subtitle: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#666666',
   },
   section: {
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 600,
     color: '#333333',
     marginBottom: 10,
@@ -73,12 +73,12 @@ const styles = StyleSheet.create({
   },
   label: {
     width: 120,
-    fontSize: 9,
+    fontSize: 11,
     color: '#666666',
   },
   value: {
     flex: 1,
-    fontSize: 10,
+    fontSize: 12,
     color: '#333333',
   },
   table: {
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   },
   tableHeaderCell: {
     color: '#ffffff',
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 600,
   },
   tableRow: {
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fafafa',
   },
   tableCell: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#333333',
   },
   productCol: { width: '65%' },
@@ -124,12 +124,12 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   totalLabel: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#666666',
     marginRight: 20,
   },
   totalValue: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: 700,
     color: '#FF8C42',
   },
@@ -140,19 +140,19 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   conditionsTitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 600,
     color: '#333333',
     marginBottom: 8,
   },
   conditionsText: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#666666',
     lineHeight: 1.5,
   },
   footer: {
     textAlign: 'center',
-    fontSize: 8,
+    fontSize: 10,
     color: '#999999',
     borderTopWidth: 1,
     borderTopColor: '#eeeeee',
@@ -162,14 +162,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFB380',
     padding: '4 8',
     borderRadius: 4,
-    fontSize: 8,
+    fontSize: 10,
     color: '#333333',
     alignSelf: 'flex-start',
   },
   statusBadge: {
     padding: '4 8',
     borderRadius: 4,
-    fontSize: 8,
+    fontSize: 10,
     alignSelf: 'flex-start',
     marginLeft: 8,
   },
@@ -350,7 +350,7 @@ export function OrcamentoPDF({
                 <View style={styles.productCol}>
                   <Text style={styles.tableCell}>{item.produto?.nome}</Text>
                   {item.descricao_customizada && (
-                    <Text style={[styles.tableCell, { fontSize: 8, color: '#888888', marginTop: 2 }]}>
+                    <Text style={[styles.tableCell, { fontSize: 10, color: '#888888', marginTop: 2 }]}>
                       {item.descricao_customizada}
                     </Text>
                   )}
@@ -384,10 +384,10 @@ export function OrcamentoPDF({
 
         {/* Data do Orçamento */}
         <View style={[styles.section, { textAlign: 'center' as const }]}>
-          <Text style={{ fontSize: 10, color: '#333333', marginBottom: 5, textAlign: 'center' as const }}>
+          <Text style={{ fontSize: 12, color: '#333333', marginBottom: 5, textAlign: 'center' as const }}>
             Campo Largo, {format(new Date(orcamento.data_orcamento), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
           </Text>
-          <Text style={{ fontSize: 10, color: '#333333', textAlign: 'center' as const }}>
+          <Text style={{ fontSize: 12, color: '#333333', textAlign: 'center' as const }}>
             Comercial Experimente
           </Text>
         </View>

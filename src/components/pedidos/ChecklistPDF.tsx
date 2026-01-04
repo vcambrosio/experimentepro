@@ -22,7 +22,7 @@ Font.register({
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Inter',
-    fontSize: 10,
+    fontSize: 13,
     padding: 30,
     backgroundColor: '#ffffff',
   },
@@ -33,18 +33,18 @@ const styles = StyleSheet.create({
     borderBottomColor: '#FF8C42',
   },
   title: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: 700,
     color: '#FF8C42',
     marginBottom: 5,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: 600,
     color: '#333333',
   },
   dateInfo: {
-    fontSize: 10,
+    fontSize: 13,
     color: '#666666',
     marginTop: 5,
   },
@@ -55,11 +55,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   clientLabel: {
-    fontSize: 9,
+    fontSize: 12,
     color: '#666666',
   },
   clientValue: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: 600,
     color: '#333333',
   },
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   productTitle: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: 600,
     color: '#333333',
     backgroundColor: '#FFE5B4',
@@ -82,8 +82,8 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
   checkbox: {
-    width: 14,
-    height: 14,
+    width: 18,
+    height: 18,
     borderWidth: 1.5,
     borderColor: '#333333',
     borderRadius: 2,
@@ -94,12 +94,12 @@ const styles = StyleSheet.create({
     borderColor: '#6FB88A',
   },
   checkmark: {
-    fontSize: 10,
+    fontSize: 13,
     color: '#2D5F3F',
     textAlign: 'center',
   },
   itemText: {
-    fontSize: 10,
+    fontSize: 13,
     color: '#333333',
     flex: 1,
   },
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     left: 30,
     right: 30,
     textAlign: 'center',
-    fontSize: 8,
+    fontSize: 10,
     color: '#999999',
     borderTopWidth: 1,
     borderTopColor: '#eeeeee',

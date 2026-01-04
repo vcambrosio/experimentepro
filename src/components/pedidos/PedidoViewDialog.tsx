@@ -70,13 +70,18 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
     
     setGeneratingPdf(true);
     try {
+      console.log('Iniciando geração do PDF para pedido:', pedido.id);
+      console.log('Dados do pedido:', JSON.stringify(pedido, null, 2));
+      
       const blob = await pdf(
-        <PedidoPDF 
+        <PedidoPDF
           pedido={pedido}
           empresaNome={config?.nome_empresa}
           showValues={isAdmin}
         />
       ).toBlob();
+      
+      console.log('Blob gerado com sucesso, tamanho:', blob.size);
       
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -90,6 +95,7 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
       toast.success('PDF gerado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
+      console.error('Detalhes do erro:', JSON.stringify(error, null, 2));
       toast.error('Erro ao gerar PDF. Tente novamente.');
     } finally {
       setGeneratingPdf(false);

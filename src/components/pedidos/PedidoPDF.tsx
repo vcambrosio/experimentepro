@@ -4,27 +4,16 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
 } from '@react-pdf/renderer';
 import { Pedido } from '@/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// Register Inter font
-Font.register({
-  family: 'Inter',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff2', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hjp-Ek-_EeA.woff2', fontWeight: 600 },
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hjp-Ek-_EeA.woff2', fontWeight: 700 },
-  ],
-});
-
 // Thermal printer style (80mm = ~226 points at 72 DPI)
 const styles = StyleSheet.create({
   page: {
-    fontFamily: 'Inter',
-    fontSize: 9,
+    fontFamily: 'Helvetica',
+    fontSize: 11,
     padding: 15,
     backgroundColor: '#ffffff',
     width: 226,
@@ -38,17 +27,17 @@ const styles = StyleSheet.create({
     borderBottomStyle: 'dashed',
   },
   logo: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 700,
     marginBottom: 3,
   },
   pedidoNumero: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: 600,
     marginTop: 5,
   },
   dateTime: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#666666',
     marginTop: 3,
   },
@@ -67,7 +56,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 600,
     marginBottom: 5,
     textTransform: 'uppercase',
@@ -76,11 +65,11 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   label: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#666666',
   },
   value: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 500,
   },
   itemRow: {
@@ -95,23 +84,23 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   itemQty: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 600,
     width: 25,
   },
   itemName: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 600,
     flex: 1,
   },
   itemDescription: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#666666',
     marginLeft: 25,
     marginTop: 2,
   },
   itemDetails: {
-    fontSize: 7,
+    fontSize: 9,
     color: '#888888',
     marginLeft: 25,
     marginTop: 2,
@@ -125,18 +114,18 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusLabel: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#666666',
   },
   statusValue: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: 700,
     marginTop: 3,
   },
   footer: {
     marginTop: 15,
     textAlign: 'center',
-    fontSize: 7,
+    fontSize: 9,
     color: '#999999',
   },
   totalSection: {
@@ -151,11 +140,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   totalLabel: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: 600,
   },
   totalValue: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: 700,
   },
 });
@@ -181,20 +170,28 @@ const getStatusLabel = (status: string) => {
   }
 };
 
-export function PedidoPDF({ 
-  pedido, 
+export function PedidoPDF({
+  pedido,
   empresaNome = 'Experimente Pro',
   showValues = false,
 }: PedidoPDFProps) {
+  // Validar dados do pedido
+  const dataEntrega = pedido.data_hora_entrega ? new Date(pedido.data_hora_entrega) : new Date();
+  const clienteNome = pedido.cliente?.nome || 'Cliente não informado';
+  const setorNome = pedido.setor?.nome_setor || '';
+  const itens = pedido.itens || [];
+  const valorTotal = pedido.valor_total || 0;
+  const status = pedido.status || 'pendente';
+
   return (
     <Document>
-      <Page size={[226, 'auto']} style={styles.page}>
+      <Page size={{ width: 226, height: 2000 }} style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.logo}>{empresaNome}</Text>
           <Text style={styles.pedidoNumero}>PEDIDO</Text>
           <Text style={styles.dateTime}>
-            {format(new Date(pedido.data_hora_entrega), "dd/MM/yyyy 'às' HH:mm")}
+            {format(dataEntrega, "dd/MM/yyyy 'às' HH:mm")}
           </Text>
         </View>
 
@@ -202,12 +199,12 @@ export function PedidoPDF({
         <View style={styles.section}>
           <View style={styles.clientInfo}>
             <Text style={styles.label}>Cliente:</Text>
-            <Text style={styles.value}>{pedido.cliente?.nome}</Text>
+            <Text style={styles.value}>{clienteNome}</Text>
           </View>
-          {pedido.setor && (
+          {setorNome && (
             <View style={styles.clientInfo}>
               <Text style={styles.label}>Setor:</Text>
-              <Text style={styles.value}>{pedido.setor.nome_setor}</Text>
+              <Text style={styles.value}>{setorNome}</Text>
             </View>
           )}
         </View>
@@ -218,11 +215,11 @@ export function PedidoPDF({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Itens do Pedido</Text>
           
-          {pedido.itens?.map((item, index) => (
+          {itens && itens.length > 0 ? itens.map((item, index) => (
             <View key={index} style={styles.itemRow}>
               <View style={styles.itemHeader}>
-                <Text style={styles.itemQty}>{item.quantidade}x</Text>
-                <Text style={styles.itemName}>{item.produto?.nome}</Text>
+                <Text style={styles.itemQty}>{item.quantidade || 0}x</Text>
+                <Text style={styles.itemName}>{item.produto?.nome || 'Produto não informado'}</Text>
               </View>
               {item.descricao_customizada && (
                 <Text style={styles.itemDescription}>
@@ -235,25 +232,17 @@ export function PedidoPDF({
                 </Text>
               )}
             </View>
-          ))}
+          )) : (
+            <Text style={styles.value}>Nenhum item</Text>
+          )}
         </View>
-
-        {/* Total (only for admin) */}
-        {showValues && (
-          <View style={styles.totalSection}>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>TOTAL:</Text>
-              <Text style={styles.totalValue}>{formatCurrency(pedido.valor_total)}</Text>
-            </View>
-          </View>
-        )}
 
         <View style={styles.dividerDouble} />
 
         {/* Status */}
         <View style={styles.statusSection}>
           <Text style={styles.statusLabel}>Status do Pedido</Text>
-          <Text style={styles.statusValue}>{getStatusLabel(pedido.status)}</Text>
+          <Text style={styles.statusValue}>{getStatusLabel(status)}</Text>
         </View>
 
         {/* Footer */}

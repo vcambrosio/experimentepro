@@ -48,7 +48,7 @@ export function useThermalPrint() {
     }
     body {
       font-family: 'Courier New', monospace;
-      font-size: 12px;
+      font-size: 15px;
       width: 80mm;
       padding: 5mm;
       background: white;
@@ -61,16 +61,16 @@ export function useThermalPrint() {
       margin-bottom: 8px;
     }
     .logo {
-      font-size: 16px;
+      font-size: 20px;
       font-weight: bold;
     }
     .pedido-num {
-      font-size: 14px;
+      font-size: 18px;
       font-weight: bold;
       margin-top: 4px;
     }
     .datetime {
-      font-size: 10px;
+      font-size: 13px;
       color: #333;
       margin-top: 4px;
     }
@@ -89,10 +89,10 @@ export function useThermalPrint() {
       font-weight: bold;
       text-transform: uppercase;
       margin-bottom: 4px;
-      font-size: 11px;
+      font-size: 14px;
     }
     .label {
-      font-size: 10px;
+      font-size: 13px;
       color: #666;
     }
     .value {
@@ -116,13 +116,13 @@ export function useThermalPrint() {
       flex: 1;
     }
     .item-desc {
-      font-size: 10px;
+      font-size: 13px;
       color: #666;
       margin-left: 30px;
       margin-top: 2px;
     }
     .item-obs {
-      font-size: 9px;
+      font-size: 12px;
       color: #888;
       margin-left: 30px;
       font-style: italic;
@@ -135,11 +135,11 @@ export function useThermalPrint() {
       border-radius: 4px;
     }
     .status-label {
-      font-size: 10px;
+      font-size: 13px;
       color: #666;
     }
     .status-value {
-      font-size: 14px;
+      font-size: 18px;
       font-weight: bold;
       margin-top: 2px;
     }
@@ -154,17 +154,17 @@ export function useThermalPrint() {
       align-items: center;
     }
     .total-label {
-      font-size: 12px;
+      font-size: 15px;
       font-weight: bold;
     }
     .total-value {
-      font-size: 14px;
+      font-size: 18px;
       font-weight: bold;
     }
     .footer {
       margin-top: 12px;
       text-align: center;
-      font-size: 9px;
+      font-size: 12px;
       color: #999;
     }
     @media print {
@@ -205,15 +205,6 @@ export function useThermalPrint() {
       </div>
     `).join('')}
   </div>
-
-  ${showValues ? `
-  <div class="total-section">
-    <div class="total-row">
-      <span class="total-label">TOTAL:</span>
-      <span class="total-value">${formatCurrency(pedido.valor_total)}</span>
-    </div>
-  </div>
-  ` : ''}
 
   <div class="divider-double"></div>
 
