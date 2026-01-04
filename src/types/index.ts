@@ -50,7 +50,8 @@ export interface Produto {
 export interface ChecklistItem {
   id: string;
   produto_id: string;
-  item: string;
+  descricao: string;
+  quantidade_por_unidade: number;
   ordem: number;
   created_at: string;
 }

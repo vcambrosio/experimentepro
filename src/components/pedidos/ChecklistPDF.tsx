@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
 
 interface ChecklistPDFProps {
   pedido: Pedido;
-  checklistData: { produtoNome: string; produtoId: string; itens: ChecklistItem[] }[];
+  checklistData: { produtoNome: string; produtoId: string; quantidade: number; itens: (ChecklistItem & { quantidadeTotal: number })[] }[];
   checkedItems: Record<string, boolean>;
   empresaNome?: string;
 }
@@ -161,7 +161,7 @@ export function ChecklistPDF({
         {/* Checklist Items by Product */}
         {checklistData.map((produto, produtoIndex) => (
           <View key={produtoIndex} style={styles.productSection}>
-            <Text style={styles.productTitle}>{produto.produtoNome}</Text>
+            <Text style={styles.productTitle}>{produto.produtoNome} (x{produto.quantidade})</Text>
             
             {produto.itens.map((item) => {
               const isChecked = checkedItems[item.id] || false;
@@ -172,7 +172,7 @@ export function ChecklistPDF({
                     {isChecked && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                   <Text style={[styles.itemText, isChecked && styles.itemTextChecked]}>
-                    {item.item}
+                    {item.quantidadeTotal}x {item.descricao}
                   </Text>
                 </View>
               );
