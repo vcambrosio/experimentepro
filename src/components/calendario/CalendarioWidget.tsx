@@ -285,15 +285,15 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDragPedido(null);
-
+    
     if (!over) return;
-
+    
     const pedidoId = active.id as string;
     const newDateKey = over.id as string;
     const pedido = pedidos.find(p => p.id === pedidoId);
     
     if (!pedido) return;
-
+    
     const currentDateKey = format(new Date(pedido.data_hora_entrega), 'yyyy-MM-dd');
     
     // Only show dialog if dropping on a different day
@@ -307,6 +307,9 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
         newDate,
         newTime: currentTime,
       });
+      
+      // Automatically navigate to the new date
+      setCurrentDate(newDate);
     }
   };
 
