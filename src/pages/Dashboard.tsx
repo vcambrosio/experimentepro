@@ -42,7 +42,10 @@ export default function Dashboard() {
     ?.filter(o => o.status === 'pendente')
     .reduce((acc, o) => acc + (o.valor_total || 0), 0) || 0;
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | undefined | null) => {
+    if (value === undefined || value === null || isNaN(value)) {
+      return 'R$ 0,00';
+    }
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 

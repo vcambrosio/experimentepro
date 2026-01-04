@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
@@ -14,13 +14,14 @@ import {
   subWeeks,
   isToday,
   setHours,
-  setMinutes
+  setMinutes,
+  parseISO
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Calendar as CalendarIcon, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
   Clock,
   User,
   Plus,
@@ -95,7 +96,7 @@ function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewM
   });
  
   const style = {
-    transform: CSS.Translate.toString(transform),
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     opacity: isDragging ? 0.5 : 1,
   };
  
@@ -112,7 +113,7 @@ function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewM
     >
       <GripVertical className="h-2 w-2 shrink-0 opacity-50" />
       <span className="hidden sm:inline truncate">
-        {format(new Date(pedido.data_hora_entrega), 'HH:mm')} - {pedido.cliente?.nome?.split(' ')[0]}
+        {format(new Date(pedido.data_hora_entrega), 'HH:mm')} - {pedido.cliente?.nome ? pedido.cliente.nome.split(' ')[0] : ''}
       </span>
       <span className="sm:hidden">
         {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
@@ -297,7 +298,8 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
     
     // Only show dialog if dropping on a different day
     if (currentDateKey !== newDateKey) {
-      const newDate = new Date(newDateKey);
+      // Use parseISO to avoid timezone issues
+      const newDate = parseISO(newDateKey);
       const currentTime = format(new Date(pedido.data_hora_entrega), 'HH:mm');
       
       setRescheduleDialog({
@@ -537,7 +539,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                   statusColors[activeDragPedido.status]
                 )}>
                   <div className="font-medium">
-                    {format(new Date(activeDragPedido.data_hora_entrega), 'HH:mm')} - {activeDragPedido.cliente?.nome}
+                    {format(new Date(activeDragPedido.data_hora_entrega), 'HH:mm')} - {activeDragPedido.cliente?.nome || ''}
                   </div>
                 </div>
               )}
@@ -590,7 +592,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                        
                         <div className="flex items-center gap-2 text-sm">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{pedido.cliente?.nome}</span>
+                          <span>{pedido.cliente?.nome || ''}</span>
                         </div>
                        
                         {pedido.setor && (

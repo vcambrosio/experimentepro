@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Suspense, lazy } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -44,8 +45,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<Navigate to="/login" replace />} />
               
@@ -120,9 +122,10 @@ const App = () => (
                 </ProtectedRoute>
               } />
               
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
