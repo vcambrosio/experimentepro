@@ -24,7 +24,8 @@ import {
   UserPlus,
   Key,
   Edit,
-  Trash2
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { useConfiguracaoEmpresa, useUpdateConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
 import { useUsers, useUpdateUserRole, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
@@ -111,7 +112,8 @@ export default function Configuracoes() {
     open: boolean;
     userId: string;
     userName: string;
-    action: 'promote' | 'demote' | 'delete';
+    action: 'promote' | 'demote' | 'delete' | 'delete_logo';
+    logoType?: UploadType;
   }>({ open: false, userId: '', userName: '', action: 'promote' });
   const [editDialog, setEditDialog] = useState<{
     open: boolean;
@@ -272,6 +274,27 @@ export default function Configuracoes() {
   const confirmDeleteUser = async () => {
     await deleteUser.mutateAsync(confirmDialog.userId);
     setConfirmDialog({ open: false, userId: '', userName: '', action: 'promote' });
+  };
+
+  const handleDeleteLogo = (type: UploadType) => {
+    setConfirmDialog({
+      open: true,
+      userId: '',
+      userName: '',
+      action: 'delete_logo',
+      logoType: type
+    });
+  };
+
+  const confirmDeleteLogo = async () => {
+    if (!confirmDialog.logoType) return;
+    
+    await updateConfig.mutateAsync({
+      id: config?.id,
+      [confirmDialog.logoType === 'logo_sistema' ? 'logo_url' : 'logo_pdf_url']: null,
+    });
+    
+    setConfirmDialog({ open: false, userId: '', userName: '', action: 'promote', logoType: undefined });
   };
 
   const onSubmitEditUser = async (data: EditUsuarioFormData) => {
@@ -469,19 +492,29 @@ export default function Configuracoes() {
                       </p>
                       {config?.logo_url ? (
                         <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
-                          <img 
-                            src={config.logo_url} 
-                            alt="Logo do sistema" 
+                          <img
+                            src={config.logo_url}
+                            alt="Logo do sistema"
                             className="h-16 w-auto max-w-[200px] object-contain"
                           />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setUploadDialog({ open: true, type: 'logo_sistema' })}
-                          >
-                            <Upload className="h-4 w-4 mr-2" />
-                            Alterar
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setUploadDialog({ open: true, type: 'logo_sistema' })}
+                            >
+                              <Upload className="h-4 w-4 mr-2" />
+                              Alterar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteLogo('logo_sistema')}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <Button
@@ -502,19 +535,29 @@ export default function Configuracoes() {
                       </p>
                       {config?.logo_pdf_url ? (
                         <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
-                          <img 
-                            src={config.logo_pdf_url} 
-                            alt="Logo do orçamento" 
+                          <img
+                            src={config.logo_pdf_url}
+                            alt="Logo do orçamento"
                             className="h-16 w-auto max-w-[200px] object-contain"
                           />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setUploadDialog({ open: true, type: 'logo_pdf' })}
-                          >
-                            <Upload className="h-4 w-4 mr-2" />
-                            Alterar
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setUploadDialog({ open: true, type: 'logo_pdf' })}
+                            >
+                              <Upload className="h-4 w-4 mr-2" />
+                              Alterar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteLogo('logo_pdf')}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <Button
@@ -757,30 +800,44 @@ export default function Configuracoes() {
       <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmDialog.action === 'delete'
-                ? 'Excluir Usuário'
-                : confirmDialog.action === 'promote'
-                  ? 'Promover a Administrador'
-                  : 'Rebaixar para Usuário'
-              }
+            <AlertDialogTitle className="flex items-center gap-2">
+              {confirmDialog.action === 'delete' && (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Excluir Usuário
+                </>
+              )}
+              {confirmDialog.action === 'delete_logo' && (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Excluir Logomarca
+                </>
+              )}
+              {confirmDialog.action === 'promote' && 'Promover a Administrador'}
+              {confirmDialog.action === 'demote' && 'Rebaixar para Usuário'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDialog.action === 'delete'
                 ? `Tem certeza que deseja excluir "${confirmDialog.userName}"? Esta ação não pode ser desfeita e removerá todos os dados do usuário do sistema.`
-                : confirmDialog.action === 'promote'
-                  ? `Tem certeza que deseja promover "${confirmDialog.userName}" a administrador? Administradores têm acesso total ao sistema, incluindo valores financeiros e gerenciamento de usuários.`
-                  : `Tem certeza que deseja rebaixar "${confirmDialog.userName}" para usuário comum? O usuário perderá acesso a funcionalidades administrativas.`
+                : confirmDialog.action === 'delete_logo'
+                  ? `Tem certeza que deseja excluir a logomarca ${confirmDialog.logoType === 'logo_sistema' ? 'do Sistema' : 'do Orçamento'}? Esta ação não pode ser desfeita.`
+                  : confirmDialog.action === 'promote'
+                    ? `Tem certeza que deseja promover "${confirmDialog.userName}" a administrador? Administradores têm acesso total ao sistema, incluindo valores financeiros e gerenciamento de usuários.`
+                    : `Tem certeza que deseja rebaixar "${confirmDialog.userName}" para usuário comum? O usuário perderá acesso a funcionalidades administrativas.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDialog.action === 'delete' ? confirmDeleteUser : confirmRoleChange}
-              className={confirmDialog.action === 'delete' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+              onClick={
+                confirmDialog.action === 'delete' ? confirmDeleteUser :
+                confirmDialog.action === 'delete_logo' ? confirmDeleteLogo :
+                confirmRoleChange
+              }
+              className={(confirmDialog.action === 'delete' || confirmDialog.action === 'delete_logo') ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
             >
-              {(updateUserRole.isPending || deleteUser.isPending) ? (
+              {(updateUserRole.isPending || deleteUser.isPending || updateConfig.isPending) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 'Confirmar'

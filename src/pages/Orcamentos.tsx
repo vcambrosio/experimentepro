@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Filter, FileText, ArrowRight, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Filter, FileText, ArrowRight, CheckCircle, XCircle, Clock, X } from 'lucide-react';
 import { useOrcamentos, useDeleteOrcamento, useUpdateOrcamento, useConvertOrcamentoToPedido } from '@/hooks/useOrcamentos';
 import { useAuth } from '@/contexts/AuthContext';
 import { Orcamento, StatusOrcamento } from '@/types';
@@ -48,6 +48,7 @@ const statusLabels: Record<StatusOrcamento, string> = {
   aprovado: 'Aprovado',
   recusado: 'Recusado',
   expirado: 'Expirado',
+  perdido: 'Perdido',
 };
 
 const getStatusBadgeClass = (status: StatusOrcamento) => {
@@ -59,6 +60,8 @@ const getStatusBadgeClass = (status: StatusOrcamento) => {
     case 'recusado':
       return 'bg-destructive text-destructive-foreground';
     case 'expirado':
+      return 'bg-muted text-muted-foreground';
+    case 'perdido':
       return 'bg-muted text-muted-foreground';
     default:
       return '';
@@ -80,6 +83,17 @@ export default function Orcamentos() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [selectedOrcamento, setSelectedOrcamento] = useState<Orcamento | null>(null);
+  const [newClienteId, setNewClienteId] = useState<string | null>(null);
+
+  // Verifica se há um novo cliente criado para selecionar automaticamente
+  useEffect(() => {
+    const savedClienteId = localStorage.getItem('newClienteId');
+    if (savedClienteId) {
+      setNewClienteId(savedClienteId);
+      setFormDialogOpen(true);
+      localStorage.removeItem('newClienteId');
+    }
+  }, []);
 
   const filteredOrcamentos = orcamentos?.filter(orcamento => {
     const matchesSearch = 
@@ -190,6 +204,7 @@ export default function Orcamentos() {
             <SelectItem value="aprovado">Aprovado</SelectItem>
             <SelectItem value="recusado">Recusado</SelectItem>
             <SelectItem value="expirado">Expirado</SelectItem>
+            <SelectItem value="perdido">Perdido</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -215,6 +230,7 @@ export default function Orcamentos() {
                 <TableHead>Número</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Data</TableHead>
+                <TableHead>Entrega</TableHead>
                 <TableHead>Status</TableHead>
                 {isAdmin && <TableHead className="text-right">Valor</TableHead>}
                 <TableHead className="w-[140px]">Ações</TableHead>
@@ -233,7 +249,11 @@ export default function Orcamentos() {
                     <div>
                       <p className="font-medium">{orcamento.cliente?.nome || 'Cliente não encontrado'}</p>
                       {orcamento.setor && (
-                        <p className="text-sm text-muted-foreground">{orcamento.setor.nome_setor}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {orcamento.setor.nome_setor}
+                          {orcamento.setor.responsavel && ` (${orcamento.setor.responsavel})`}
+                          {orcamento.setor.contato && ` - ${orcamento.setor.contato}`}
+                        </p>
                       )}
                     </div>
                   </TableCell>
@@ -248,6 +268,18 @@ export default function Orcamentos() {
                         </p>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {orcamento.data_entrega && (
+                      <div>
+                        <p className="font-medium">
+                          {format(new Date(orcamento.data_entrega), 'dd/MM/yyyy', { locale: ptBR })}
+                        </p>
+                        {orcamento.hora_entrega && (
+                          <p className="text-sm text-muted-foreground">{orcamento.hora_entrega}</p>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -268,12 +300,19 @@ export default function Orcamentos() {
                           Aprovado
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onClick={() => handleStatusChange(orcamento, 'recusado')}
                           className="text-destructive"
                         >
                           <XCircle className="mr-2 h-4 w-4" />
                           Recusado
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleStatusChange(orcamento, 'perdido')}
+                          className="text-destructive"
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Perdido
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -334,8 +373,14 @@ export default function Orcamentos() {
       {/* Form Dialog */}
       <OrcamentoFormDialog
         open={formDialogOpen}
-        onOpenChange={setFormDialogOpen}
+        onOpenChange={(open) => {
+          setFormDialogOpen(open);
+          if (!open) {
+            setNewClienteId(null);
+          }
+        }}
         orcamento={selectedOrcamento}
+        newClienteId={newClienteId}
       />
 
       {/* View Dialog */}

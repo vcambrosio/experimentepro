@@ -96,8 +96,17 @@ export function useUpdateOrcamento() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, ...orcamento }: Partial<Orcamento> & { id: string }) => {
-      const { cliente, setor, itens, ...rest } = orcamento;
+    mutationFn: async ({
+      id,
+      itens,
+      ...orcamento
+    }: Partial<Orcamento> & {
+      id: string;
+      itens?: Omit<ItemOrcamento, 'id' | 'orcamento_id' | 'created_at' | 'produto' | 'categoria'>[];
+    }) => {
+      const { cliente, setor, ...rest } = orcamento;
+      
+      // Update orcamento
       const { data, error } = await supabase
         .from('orcamentos')
         .update({ ...rest, updated_at: new Date().toISOString() })
@@ -106,6 +115,32 @@ export function useUpdateOrcamento() {
         .single();
       
       if (error) throw error;
+      
+      // Update items if provided
+      if (itens) {
+        // Delete old items
+        const { error: deleteError } = await supabase
+          .from('itens_orcamento')
+          .delete()
+          .eq('orcamento_id', id);
+        
+        if (deleteError) throw deleteError;
+        
+        // Insert new items
+        if (itens.length > 0) {
+          const itensWithOrcamentoId = itens.map(item => ({
+            ...item,
+            orcamento_id: id,
+          }));
+          
+          const { error: insertError } = await supabase
+            .from('itens_orcamento')
+            .insert(itensWithOrcamentoId);
+          
+          if (insertError) throw insertError;
+        }
+      }
+      
       return data;
     },
     onSuccess: () => {
@@ -163,6 +198,17 @@ export function useConvertOrcamentoToPedido() {
       
       if (orcamentoError) throw orcamentoError;
       
+      // Calculate data_hora_entrega from orcamento data_entrega and hora_entrega
+      let dataHoraEntrega = new Date().toISOString();
+      if (orcamento.data_entrega) {
+        const dataEntrega = new Date(orcamento.data_entrega);
+        if (orcamento.hora_entrega) {
+          const [hours, minutes] = orcamento.hora_entrega.split(':');
+          dataEntrega.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        }
+        dataHoraEntrega = dataEntrega.toISOString();
+      }
+      
       // Create pedido
       const { data: pedido, error: pedidoError } = await supabase
         .from('pedidos')
@@ -170,7 +216,7 @@ export function useConvertOrcamentoToPedido() {
           cliente_id: orcamento.cliente_id,
           setor_id: orcamento.setor_id,
           orcamento_id: orcamento.id,
-          data_hora_entrega: new Date().toISOString(),
+          data_hora_entrega: dataHoraEntrega,
           status: 'pendente',
           status_pagamento: 'pendente',
           valor_total: orcamento.valor_total,

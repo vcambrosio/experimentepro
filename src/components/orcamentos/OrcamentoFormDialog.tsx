@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format, addDays } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2 } from 'lucide-react';
+import { CalendarIcon, Plus, Trash2, Loader2, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientes, useSetoresCliente } from '@/hooks/useClientes';
 import { useProdutos } from '@/hooks/useProdutos';
@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { ptBR } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 
 interface ItemForm {
   produto_id: string;
@@ -47,10 +48,12 @@ interface OrcamentoFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orcamento: Orcamento | null;
+  newClienteId?: string | null;
 }
 
-export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: OrcamentoFormDialogProps) {
+export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteId }: OrcamentoFormDialogProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { data: clientes } = useClientes();
   const { data: produtos } = useProdutos();
   const createOrcamento = useCreateOrcamento();
@@ -60,6 +63,9 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
   const [setorId, setSetorId] = useState('');
   const [dataOrcamento, setDataOrcamento] = useState<Date>(new Date());
   const [validade, setValidade] = useState<Date | undefined>(addDays(new Date(), 30));
+  const [dataEntrega, setDataEntrega] = useState<Date | undefined>(undefined);
+  const [horaEntrega, setHoraEntrega] = useState('');
+  const [descricao, setDescricao] = useState('');
   const [condicoesComerciais, setCondicoesComerciais] = useState('');
   const [itens, setItens] = useState<ItemForm[]>([]);
   
@@ -81,6 +87,9 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
         setSetorId(orcamento.setor_id || '');
         setDataOrcamento(new Date(orcamento.data_orcamento));
         setValidade(orcamento.validade ? new Date(orcamento.validade) : undefined);
+        setDataEntrega(orcamento.data_entrega ? new Date(orcamento.data_entrega) : undefined);
+        setHoraEntrega(orcamento.hora_entrega || '');
+        setDescricao(orcamento.descricao || '');
         setCondicoesComerciais(orcamento.condicoes_comerciais || '');
         
         if (orcamentoCompleto.itens) {
@@ -99,24 +108,89 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
     }
   }, [open, orcamento, orcamentoCompleto]);
 
+  // Seleciona automaticamente o novo cliente quando newClienteId é fornecido
+  useEffect(() => {
+    if (newClienteId) {
+      setClienteId(newClienteId);
+    }
+  }, [newClienteId]);
+
   const resetForm = () => {
     setClienteId('');
     setSetorId('');
     setDataOrcamento(new Date());
     setValidade(addDays(new Date(), 30));
+    setDataEntrega(undefined);
+    setHoraEntrega('');
+    setDescricao('');
     setCondicoesComerciais('');
     setItens([]);
   };
 
+  const handleCreateCliente = () => {
+    // Salva o estado atual do formulário de orçamento no localStorage
+    const orcamentoState = {
+      clienteId,
+      setorId,
+      dataOrcamento: dataOrcamento.toISOString(),
+      validade: validade?.toISOString(),
+      dataEntrega: dataEntrega?.toISOString(),
+      horaEntrega,
+      descricao,
+      condicoesComerciais,
+      itens,
+    };
+    localStorage.setItem('orcamentoFormState', JSON.stringify(orcamentoState));
+    
+    // Navega para a página de criação de cliente com parâmetro de retorno
+    navigate('/clientes/novo?returnTo=orcamento');
+  };
+
+  // Carrega o estado salvo ao abrir o diálogo
+  useEffect(() => {
+    if (open && !isEditing) {
+      const savedState = localStorage.getItem('orcamentoFormState');
+      if (savedState) {
+        try {
+          const state = JSON.parse(savedState);
+          if (state.clienteId) setClienteId(state.clienteId);
+          if (state.setorId) setSetorId(state.setorId);
+          if (state.dataOrcamento) setDataOrcamento(new Date(state.dataOrcamento));
+          if (state.validade) setValidade(new Date(state.validade));
+          if (state.dataEntrega) setDataEntrega(new Date(state.dataEntrega));
+          if (state.horaEntrega) setHoraEntrega(state.horaEntrega);
+          if (state.descricao) setDescricao(state.descricao);
+          if (state.condicoesComerciais) setCondicoesComerciais(state.condicoesComerciais);
+          if (state.itens) setItens(state.itens);
+          
+          // Limpa o estado salvo após carregar
+          localStorage.removeItem('orcamentoFormState');
+        } catch (error) {
+          console.error('Erro ao carregar estado do orçamento:', error);
+        }
+      }
+    }
+  }, [open, isEditing]);
+
   const addItem = () => {
-    setItens([...itens, {
+    const novoItem = {
       produto_id: '',
       categoria_id: '',
       descricao_customizada: '',
       quantidade: 1,
       valor_unitario: 0,
       observacoes: '',
-    }]);
+    };
+    
+    // Verifica se o último item está vazio e remove se estiver
+    const ultimoItem = itens[itens.length - 1];
+    if (ultimoItem && !ultimoItem.produto_id) {
+      // Remove o último item vazio e adiciona o novo
+      setItens([...itens.slice(0, -1), novoItem]);
+    } else {
+      // Adiciona o novo item normalmente
+      setItens([...itens, novoItem]);
+    }
   };
 
   const removeItem = (index: number) => {
@@ -139,26 +213,38 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
     setItens(newItens);
   };
 
-  const calcularTotal = () => {
-    return itens.reduce((acc, item) => acc + (item.quantidade * item.valor_unitario), 0);
+  const calcularTotal = (itensList: ItemForm[] = itens) => {
+    return itensList.reduce((acc, item) => acc + (item.quantidade * item.valor_unitario), 0);
   };
 
   const handleSubmit = async () => {
     if (!clienteId || itens.length === 0) return;
+
+    // Filtra apenas itens válidos (com produto_id selecionado)
+    const itensValidos = itens.filter(item => item.produto_id && item.produto_id !== '');
+
+    // Permite salvar se houver pelo menos um item válido, mesmo com itens vazios
+    if (itensValidos.length === 0) {
+      alert('Por favor, selecione um produto para pelo menos um item do orçamento.');
+      return;
+    }
 
     const orcamentoData = {
       numero_orcamento: orcamento?.numero_orcamento || generateNumeroOrcamento(),
       data_orcamento: dataOrcamento.toISOString().split('T')[0],
       cliente_id: clienteId,
       setor_id: setorId || null,
+      descricao: descricao || null,
       condicoes_comerciais: condicoesComerciais || null,
-      valor_total: calcularTotal(),
+      valor_total: calcularTotal(itensValidos),
       status: 'pendente' as const,
       validade: validade ? validade.toISOString().split('T')[0] : null,
+      data_entrega: dataEntrega ? dataEntrega.toISOString().split('T')[0] : null,
+      hora_entrega: horaEntrega || null,
       created_by: user?.id || '',
     };
 
-    const itensData = itens.map(item => ({
+    const itensData = itensValidos.map(item => ({
       produto_id: item.produto_id,
       categoria_id: item.categoria_id,
       descricao_customizada: item.descricao_customizada || null,
@@ -172,6 +258,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
       await updateOrcamento.mutateAsync({
         id: orcamento.id,
         ...orcamentoData,
+        itens: itensData as any,
       });
     } else {
       await createOrcamento.mutateAsync({
@@ -208,18 +295,31 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="cliente">Cliente *</Label>
-              <Select value={clienteId} onValueChange={setClienteId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes?.filter(c => c.ativo).map((cliente) => (
-                    <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select value={clienteId} onValueChange={setClienteId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes?.filter(c => c.ativo).map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCreateCliente}
+                  title="Criar novo cliente"
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -292,6 +392,58 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
                 </PopoverContent>
               </Popover>
             </div>
+          </div>
+
+          {/* Data e Hora de Entrega */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Data de Entrega (opcional)</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !dataEntrega && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dataEntrega ? format(dataEntrega, 'PPP', { locale: ptBR }) : 'Selecione a data de entrega'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dataEntrega}
+                    onSelect={setDataEntrega}
+                    locale={ptBR}
+                    disabled={(date) => date < new Date()}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Hora de Entrega (opcional)</Label>
+              <Input
+                type="time"
+                value={horaEntrega}
+                onChange={(e) => setHoraEntrega(e.target.value)}
+                placeholder="Selecione a hora"
+              />
+            </div>
+          </div>
+
+          {/* Descrição do Orçamento */}
+          <div className="space-y-2">
+            <Label>Descrição (opcional)</Label>
+            <Textarea
+              placeholder="Descrição geral do orçamento..."
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              rows={3}
+            />
           </div>
 
           {/* Condições Comerciais */}
@@ -372,11 +524,18 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
                         <div className="space-y-2">
                           <Label>Valor Unit.</Label>
                           <Input
-                            type="number"
+                            type="text"
                             step="0.01"
                             min="0"
-                            value={item.valor_unitario}
-                            onChange={(e) => updateItem(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
+                            value={formatCurrency(item.valor_unitario)}
+                            onChange={(e) => {
+                              // Remove caracteres não numéricos exceto vírgula e ponto
+                              const value = e.target.value.replace(/[^\d,.-]/g, '');
+                              // Converte vírgula para ponto e para float
+                              const numValue = parseFloat(value.replace(',', '.')) || 0;
+                              updateItem(index, 'valor_unitario', numValue);
+                            }}
+                            placeholder="R$ 0,00"
                           />
                         </div>
                       </div>
@@ -402,7 +561,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento }: Orcamento
                 <div className="flex justify-end p-4 bg-muted rounded-lg">
                   <div className="text-right">
                     <span className="text-muted-foreground">Total do Orçamento: </span>
-                    <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal())}</span>
+                    <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal(itens.filter(item => item.produto_id && item.produto_id !== '')))}</span>
                   </div>
                 </div>
               </div>

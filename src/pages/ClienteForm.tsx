@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -45,6 +45,8 @@ type ClienteFormData = z.infer<typeof clienteSchema>;
 export default function ClienteForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
   const isEditing = !!id;
 
   const { data: cliente, isLoading } = useCliente(id || '');
@@ -127,6 +129,13 @@ export default function ClienteForm() {
           });
         }
         setSetoresTemp([]);
+      }
+
+      // Se o parâmetro returnTo for 'orcamento', salva o ID do cliente criado e redireciona para orçamentos
+      if (returnTo === 'orcamento') {
+        localStorage.setItem('newClienteId', clienteId);
+        navigate('/orcamentos');
+        return;
       }
     }
     navigate('/clientes');

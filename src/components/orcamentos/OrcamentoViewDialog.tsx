@@ -72,17 +72,58 @@ export function OrcamentoViewDialog({ open, onOpenChange, orcamentoId }: Orcamen
     
     setGeneratingPdf(true);
     try {
+      console.log('=== INICIANDO GERAÇÃO DO PDF ===');
+      console.log('Número do orçamento:', orcamento.numero_orcamento);
+      console.log('Configuração da empresa:', config);
+      console.log('Logo PDF URL:', config?.logo_pdf_url);
+      console.log('Itens do orçamento:', orcamento.itens?.length);
+      
+      // Converte a URL do logo para base64 se existir
+      let logoBase64: string | undefined = undefined;
+      if (config?.logo_pdf_url) {
+        try {
+          console.log('Tentando converter logo para base64...');
+          console.log('URL do logo:', config.logo_pdf_url);
+          const response = await fetch(config.logo_pdf_url);
+          console.log('Response status:', response.status);
+          const blob = await response.blob();
+          console.log('Blob type:', blob.type, 'size:', blob.size);
+          logoBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          console.log('Logo convertido para base64 com sucesso, tamanho:', logoBase64.length);
+          console.log('Primeiros 100 caracteres do base64:', logoBase64.substring(0, 100));
+        } catch (logoError) {
+          console.error('Erro ao converter logo para base64:', logoError);
+          console.error('Detalhes do erro:', logoError instanceof Error ? logoError.message : String(logoError));
+          // Continua sem o logo se houver erro na conversão
+        }
+      } else {
+        console.log('Nenhuma URL de logo PDF configurada');
+      }
+      
+      console.log('Passando logoBase64 para OrcamentoPDF:', logoBase64 ? logoBase64.substring(0, 50) + '...' : 'undefined');
+      
       const blob = await pdf(
-        <OrcamentoPDF 
+        <OrcamentoPDF
           orcamento={orcamento}
           empresaNome={config?.nome_empresa}
           empresaTelefone={config?.telefone}
           empresaEmail={config?.email}
           empresaEndereco={config?.endereco}
+          empresaLogoUrl={logoBase64}
         />
       ).toBlob();
       
+      console.log('PDF gerado com sucesso, tamanho:', blob.size);
+      console.log('Tipo do blob:', blob.type);
+      
       const url = URL.createObjectURL(blob);
+      console.log('URL do blob criada:', url);
+      
       const link = document.createElement('a');
       link.href = url;
       link.download = `${orcamento.numero_orcamento}.pdf`;
@@ -91,10 +132,15 @@ export function OrcamentoViewDialog({ open, onOpenChange, orcamentoId }: Orcamen
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
+      console.log('=== PDF BAIXADO COM SUCESSO ===');
       toast.success('PDF gerado com sucesso!');
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      toast.error('Erro ao gerar PDF. Tente novamente.');
+      console.error('=== ERRO AO GERAR PDF ===');
+      console.error('Mensagem do erro:', error instanceof Error ? error.message : String(error));
+      console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A');
+      console.error('Nome do erro:', error instanceof Error ? error.name : String(error));
+      console.error('Erro completo:', error);
+      toast.error('Erro ao gerar PDF: ' + (error instanceof Error ? error.message : 'Erro desconhecido') + '. Tente novamente.');
     } finally {
       setGeneratingPdf(false);
     }
@@ -164,11 +210,38 @@ export function OrcamentoViewDialog({ open, onOpenChange, orcamentoId }: Orcamen
                   {orcamento.setor && (
                     <p className="text-sm text-muted-foreground">
                       {orcamento.setor.nome_setor}
+                      {orcamento.setor.responsavel && ` (${orcamento.setor.responsavel})`}
+                      {orcamento.setor.contato && ` - ${orcamento.setor.contato}`}
                     </p>
                   )}
                 </div>
               </div>
             </div>
+
+            {/* Data e Hora de Entrega */}
+            {(orcamento.data_entrega || orcamento.hora_entrega) && (
+              <div className="flex items-start gap-3 p-4 bg-primary/10 rounded-lg">
+                <Calendar className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Data e Hora de Entrega</p>
+                  <p className="font-medium">
+                    {orcamento.data_entrega && format(new Date(orcamento.data_entrega), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                    {orcamento.data_entrega && orcamento.hora_entrega && ' às '}
+                    {orcamento.hora_entrega}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Descrição do Orçamento */}
+            {orcamento.descricao && (
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <p className="text-sm font-medium mb-2">Descrição</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {orcamento.descricao}
+                </p>
+              </div>
+            )}
 
             {/* Status */}
             <div className="flex items-center gap-2">

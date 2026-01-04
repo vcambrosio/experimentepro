@@ -1,7 +1,7 @@
 // Types for Experimente Pro
 
 export type TipoPessoa = 'fisica' | 'juridica';
-export type StatusOrcamento = 'pendente' | 'aprovado' | 'recusado' | 'expirado';
+export type StatusOrcamento = 'pendente' | 'aprovado' | 'recusado' | 'expirado' | 'perdido';
 export type StatusPedido = 'pendente' | 'executado' | 'cancelado';
 export type StatusPagamento = 'pendente' | 'pago';
 
@@ -63,10 +63,13 @@ export interface Orcamento {
   data_orcamento: string;
   cliente_id: string;
   setor_id?: string;
+  descricao?: string;
   condicoes_comerciais?: string;
   valor_total: number;
   status: StatusOrcamento;
   validade?: string;
+  data_entrega?: string;
+  hora_entrega?: string;
   created_at: string;
   created_by: string;
   updated_at: string;
