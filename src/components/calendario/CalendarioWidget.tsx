@@ -40,7 +40,6 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatePedido } from '@/hooks/usePedidos';
 import { Pedido, StatusPedido } from '@/types';
@@ -68,38 +67,38 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { PedidoFormDialog } from '@/components/pedidos/PedidoFormDialog';
 import { toast } from 'sonner';
-
+ 
 type ViewMode = 'month' | 'week';
-
+ 
 interface CalendarioWidgetProps {
   pedidos: Pedido[];
   isLoading?: boolean;
 }
-
+ 
 const statusColors: Record<StatusPedido, string> = {
   pendente: 'bg-warning border-warning',
   executado: 'bg-success border-success',
   cancelado: 'bg-destructive border-destructive',
 };
-
+ 
 const statusLabels: Record<StatusPedido, string> = {
   pendente: 'Pendente',
   executado: 'Executado',
   cancelado: 'Cancelado',
 };
-
+ 
 // Draggable Pedido Component
 function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewMode }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: pedido.id,
     data: { pedido },
   });
-
+ 
   const style = {
     transform: CSS.Translate.toString(transform),
     opacity: isDragging ? 0.5 : 1,
   };
-
+ 
   return (
     <div
       ref={setNodeRef}
@@ -121,7 +120,7 @@ function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewM
     </div>
   );
 }
-
+ 
 // Droppable Day Cell
 function DroppableDay({ 
   day, 
@@ -144,7 +143,7 @@ function DroppableDay({
     id: format(day, 'yyyy-MM-dd'),
     data: { day },
   });
-
+ 
   return (
     <div
       ref={setNodeRef}
@@ -163,7 +162,7 @@ function DroppableDay({
     </div>
   );
 }
-
+ 
 export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) {
   const { isAdmin } = useAuth();
   const updatePedido = useUpdatePedido();
@@ -183,7 +182,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
     newDate: Date | null;
     newTime: string;
   }>({ open: false, pedido: null, newDate: null, newTime: '12:00' });
-
+  
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -191,8 +190,8 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       },
     })
   );
-
-  // Get days for the current view
+ 
+  // Get days for current view
   const days = useMemo(() => {
     if (viewMode === 'month') {
       const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 });
@@ -204,7 +203,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       return eachDayOfInterval({ start, end });
     }
   }, [currentDate, viewMode]);
-
+ 
   // Group pedidos by date
   const pedidosByDate = useMemo(() => {
     const grouped: Record<string, Pedido[]> = {};
@@ -217,14 +216,14 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
     });
     return grouped;
   }, [pedidos]);
-
+ 
   // Get pedidos for selected date
   const selectedDatePedidos = useMemo(() => {
     if (!selectedDate) return [];
     const dateKey = format(selectedDate, 'yyyy-MM-dd');
     return pedidosByDate[dateKey] || [];
   }, [selectedDate, pedidosByDate]);
-
+ 
   const navigatePrev = () => {
     if (viewMode === 'month') {
       setCurrentDate(subMonths(currentDate, 1));
@@ -232,7 +231,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       setCurrentDate(subWeeks(currentDate, 1));
     }
   };
-
+ 
   const navigateNext = () => {
     if (viewMode === 'month') {
       setCurrentDate(addMonths(currentDate, 1));
@@ -240,11 +239,11 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       setCurrentDate(addWeeks(currentDate, 1));
     }
   };
-
+ 
   const goToToday = () => {
     setCurrentDate(new Date());
   };
-
+ 
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
     const dateKey = format(day, 'yyyy-MM-dd');
@@ -260,19 +259,19 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       setDialogOpen(true);
     }
   };
-
+ 
   const handleEditPedido = (pedido: Pedido) => {
     setSelectedPedido(pedido);
     setDialogOpen(false);
     setFormDialogOpen(true);
   };
-
+ 
   const handleCreateFromDialog = () => {
     setSelectedPedido(null);
     setDialogOpen(false);
     setFormDialogOpen(true);
   };
-
+ 
   // Drag and drop handlers
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -281,7 +280,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       setActiveDragPedido(pedido);
     }
   };
-
+ 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDragPedido(null);
@@ -308,17 +307,17 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
         newTime: currentTime,
       });
       
-      // Automatically navigate to the new date
+      // Automatically navigate to new date
       setCurrentDate(newDate);
     }
   };
-
+ 
   const confirmReschedule = async () => {
     if (!rescheduleDialog.pedido || !rescheduleDialog.newDate) return;
-
+    
     const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
     const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
-
+ 
     try {
       await updatePedido.mutateAsync({
         id: rescheduleDialog.pedido.id,
@@ -330,13 +329,13 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       console.error('Error rescheduling:', error);
     }
   };
-
+ 
   const openEditAfterReschedule = async () => {
     if (!rescheduleDialog.pedido || !rescheduleDialog.newDate) return;
-
+    
     const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
     const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
-
+ 
     try {
       await updatePedido.mutateAsync({
         id: rescheduleDialog.pedido.id,
@@ -352,16 +351,16 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       console.error('Error rescheduling:', error);
     }
   };
-
+ 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     }).format(value);
   };
-
+ 
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
+ 
   // Summary stats
   const entregasHoje = pedidosByDate[format(new Date(), 'yyyy-MM-dd')]?.length || 0;
   const pendentesEsteMes = pedidos?.filter(p => 
@@ -371,7 +370,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
   const totalEsteMes = pedidos?.filter(p => 
     isSameMonth(new Date(p.data_hora_entrega), currentDate)
   ).length || 0;
-
+ 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -379,7 +378,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       </div>
     );
   }
-
+ 
   return (
     <>
       {/* Summary Cards */}
@@ -423,7 +422,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
           </CardContent>
         </Card>
       </div>
-
+ 
       {/* Calendar */}
       <Card>
         <CardHeader className="pb-4">
@@ -439,14 +438,13 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                 Hoje
               </Button>
             </div>
-            
+           
             <CardTitle className="text-lg text-center">
               {viewMode === 'month' 
                 ? format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })
-                : `Semana de ${format(startOfWeek(currentDate, { weekStartsOn: 0 }), "dd 'de' MMMM", { locale: ptBR })}`
-              }
+                : `Semana de ${format(startOfWeek(currentDate, { weekStartsOn: 0 }), "dd 'de' MMMM", { locale: ptBR })}`}
             </CardTitle>
-            
+           
             <div className="flex items-center gap-2">
               <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
                 <SelectTrigger className="w-[120px]">
@@ -480,7 +478,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
               </div>
             ))}
           </div>
-
+ 
           {/* Calendar grid with DnD */}
           <DndContext
             sensors={sensors}
@@ -496,7 +494,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                 const dayPedidos = pedidosByDate[dateKey] || [];
                 const isCurrentMonth = isSameMonth(day, currentDate);
                 const isSelected = selectedDate && isSameDay(day, selectedDate);
-                
+                 
                 return (
                   <DroppableDay
                     key={index}
@@ -514,7 +512,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                     )}>
                       {format(day, 'd')}
                     </div>
-                    
+                     
                     {/* Pedidos indicators */}
                     <div className="space-y-0.5" onClick={(e) => e.stopPropagation()}>
                       {dayPedidos.slice(0, viewMode === 'week' ? 4 : 2).map((pedido) => (
@@ -530,7 +528,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                 );
               })}
             </div>
-
+ 
             {/* Drag Overlay */}
             <DragOverlay>
               {activeDragPedido && (
@@ -547,7 +545,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
           </DndContext>
         </CardContent>
       </Card>
-
+ 
       {/* Day Details Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
@@ -569,70 +567,70 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
               {selectedDatePedidos
                 .sort((a, b) => new Date(a.data_hora_entrega).getTime() - new Date(b.data_hora_entrega).getTime())
                 .map((pedido) => (
-                <div
-                  key={pedido.id}
-                  className={cn(
-                    "p-4 rounded-lg border-l-4 cursor-pointer hover:bg-accent/50 transition-colors",
-                    statusColors[pedido.status],
-                    "bg-card"
-                  )}
-                  onClick={() => handleEditPedido(pedido)}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">
-                          {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
-                        </span>
-                        <Badge variant="outline" className="text-xs">
-                          {statusLabels[pedido.status]}
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{pedido.cliente?.nome}</span>
-                      </div>
-                      
-                      {pedido.setor && (
-                        <p className="text-xs text-muted-foreground ml-6">
-                          {pedido.setor.nome_setor}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col items-end gap-2">
-                      {isAdmin && (
-                        <>
-                          <p className="font-semibold text-primary">
-                            {formatCurrency(pedido.valor_total)}
-                          </p>
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              "text-xs",
-                              pedido.status_pagamento === 'pago' 
-                                ? 'bg-success/20 text-success-foreground' 
-                                : 'bg-warning/20 text-warning-foreground'
-                            )}
-                          >
-                            {pedido.status_pagamento === 'pago' ? 'Pago' : 'A Pagar'}
+                  <div
+                    key={pedido.id}
+                    className={cn(
+                      "p-4 rounded-lg border-l-4 cursor-pointer hover:bg-accent/50 transition-colors",
+                      statusColors[pedido.status],
+                      "bg-card"
+                    )}
+                    onClick={() => handleEditPedido(pedido)}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">
+                            {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {statusLabels[pedido.status]}
                           </Badge>
-                        </>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                        </div>
+                       
+                        <div className="flex items-center gap-2 text-sm">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span>{pedido.cliente?.nome}</span>
+                        </div>
+                       
+                        {pedido.setor && (
+                          <p className="text-xs text-muted-foreground ml-6">
+                            {pedido.setor.nome_setor}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-2">
+                        {isAdmin && (
+                          <>
+                            <p className="font-semibold text-primary">
+                              {formatCurrency(pedido.valor_total)}
+                            </p>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-xs",
+                                pedido.status_pagamento === 'pago' 
+                                  ? 'bg-success/20 text-success-foreground' 
+                                  : 'bg-warning/20 text-warning-foreground'
+                              )}
+                            >
+                              {pedido.status_pagamento === 'pago' ? 'Pago' : 'A Pagar'}
+                            </Badge>
+                          </>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </ScrollArea>
         </DialogContent>
       </Dialog>
-
+ 
       {/* Reschedule Confirmation Dialog */}
       <Dialog open={rescheduleDialog.open} onOpenChange={(open) => setRescheduleDialog(prev => ({ ...prev, open }))}>
         <DialogContent>
@@ -653,7 +651,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                 {rescheduleDialog.newDate && format(rescheduleDialog.newDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
               </div>
             </div>
-            
+           
             <div className="space-y-2">
               <Label htmlFor="newTime">Novo Horário</Label>
               <Input
@@ -683,7 +681,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
+ 
       {/* Pedido Form Dialog */}
       <PedidoFormDialog
         open={formDialogOpen}
