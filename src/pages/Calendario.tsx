@@ -21,7 +21,9 @@ import {
   Calendar as CalendarIcon, 
   Clock,
   User,
-  Loader2
+  Loader2,
+  Plus,
+  Pencil
 } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,6 +46,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { PedidoFormDialog } from '@/components/pedidos/PedidoFormDialog';
 
 type ViewMode = 'month' | 'week';
 
@@ -67,6 +70,8 @@ export default function Calendario() {
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
 
   // Get days for the current view
   const days = useMemo(() => {
@@ -124,9 +129,32 @@ export default function Calendario() {
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
     const dateKey = format(day, 'yyyy-MM-dd');
-    if (pedidosByDate[dateKey]?.length > 0) {
+    const dayPedidos = pedidosByDate[dateKey] || [];
+    
+    if (dayPedidos.length === 0) {
+      // No orders on this day - open create form with the date pre-filled
+      setSelectedPedido(null);
+      setFormDialogOpen(true);
+    } else if (dayPedidos.length === 1) {
+      // Single order - open for editing directly
+      setSelectedPedido(dayPedidos[0]);
+      setFormDialogOpen(true);
+    } else {
+      // Multiple orders - show list dialog
       setDialogOpen(true);
     }
+  };
+
+  const handleEditPedido = (pedido: Pedido) => {
+    setSelectedPedido(pedido);
+    setDialogOpen(false);
+    setFormDialogOpen(true);
+  };
+
+  const handleCreateFromDialog = () => {
+    setSelectedPedido(null);
+    setDialogOpen(false);
+    setFormDialogOpen(true);
   };
 
   const formatCurrency = (value: number) => {
@@ -335,9 +363,15 @@ export default function Calendario() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-primary" />
-              {selectedDate && format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5 text-primary" />
+                {selectedDate && format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </div>
+              <Button variant="outline" size="sm" onClick={handleCreateFromDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Pedido
+              </Button>
             </DialogTitle>
           </DialogHeader>
           
@@ -354,13 +388,14 @@ export default function Calendario() {
                   <div
                     key={pedido.id}
                     className={cn(
-                      "p-4 rounded-lg border-l-4",
+                      "p-4 rounded-lg border-l-4 cursor-pointer hover:bg-accent/50 transition-colors",
                       statusColors[pedido.status],
                       "bg-card"
                     )}
+                    onClick={() => handleEditPedido(pedido)}
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
+                      <div className="space-y-1 flex-1">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">
@@ -383,24 +418,29 @@ export default function Calendario() {
                         )}
                       </div>
                       
-                      {isAdmin && (
-                        <div className="text-right">
-                          <p className="font-semibold text-primary">
-                            {formatCurrency(pedido.valor_total)}
-                          </p>
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              "text-xs",
-                              pedido.status_pagamento === 'pago' 
-                                ? 'bg-success/20 text-success-foreground' 
-                                : 'bg-warning/20 text-warning-foreground'
-                            )}
-                          >
-                            {pedido.status_pagamento === 'pago' ? 'Pago' : 'A Pagar'}
-                          </Badge>
-                        </div>
-                      )}
+                      <div className="flex flex-col items-end gap-2">
+                        {isAdmin && (
+                          <>
+                            <p className="font-semibold text-primary">
+                              {formatCurrency(pedido.valor_total)}
+                            </p>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-xs",
+                                pedido.status_pagamento === 'pago' 
+                                  ? 'bg-success/20 text-success-foreground' 
+                                  : 'bg-warning/20 text-warning-foreground'
+                              )}
+                            >
+                              {pedido.status_pagamento === 'pago' ? 'Pago' : 'A Pagar'}
+                            </Badge>
+                          </>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -409,6 +449,14 @@ export default function Calendario() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Pedido Form Dialog */}
+      <PedidoFormDialog
+        open={formDialogOpen}
+        onOpenChange={setFormDialogOpen}
+        pedido={selectedPedido}
+        initialDate={selectedDate || undefined}
+      />
     </div>
   );
 }
