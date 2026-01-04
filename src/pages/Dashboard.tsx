@@ -4,23 +4,17 @@ import { useOrcamentos } from '@/hooks/useOrcamentos';
 import { useClientes } from '@/hooks/useClientes';
 import { useProdutos } from '@/hooks/useProdutos';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { 
-  ShoppingCart, 
-  FileText, 
   Clock, 
   CheckCircle, 
   DollarSign, 
   TrendingUp,
   Users,
   Package,
-  Calendar,
-  ArrowRight
+  FileText
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Link } from 'react-router-dom';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { CalendarioWidget } from '@/components/calendario/CalendarioWidget';
 
 export default function Dashboard() {
   const { isAdmin, profile } = useAuth();
@@ -54,22 +48,6 @@ export default function Dashboard() {
 
   const isLoading = loadingPedidos || loadingOrcamentos || loadingClientes || loadingProdutos;
 
-  // Pedidos recentes (últimos 5)
-  const pedidosRecentes = pedidos
-    ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5) || [];
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { label: string; className: string }> = {
-      pendente: { label: 'Pendente', className: 'bg-warning text-warning-foreground' },
-      executado: { label: 'Executado', className: 'bg-success text-success-foreground' },
-      cancelado: { label: 'Cancelado', className: 'bg-destructive text-destructive-foreground' },
-      aprovado: { label: 'Aprovado', className: 'bg-success text-success-foreground' },
-      recusado: { label: 'Recusado', className: 'bg-destructive text-destructive-foreground' },
-    };
-    const config = statusConfig[status] || { label: status, className: 'bg-muted' };
-    return <Badge className={config.className}>{config.label}</Badge>;
-  };
 
   return (
     <div className="space-y-6">
@@ -194,129 +172,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Seção de Atividade Recente e Ações Rápidas */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Pedidos Recentes */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-medium">Pedidos Recentes</CardTitle>
-            <Link 
-              to="/pedidos" 
-              className="text-sm text-primary hover:underline flex items-center gap-1"
-            >
-              Ver todos <ArrowRight className="h-3 w-3" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="flex-1">
-                      <Skeleton className="h-4 w-32 mb-1" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                    <Skeleton className="h-6 w-16" />
-                  </div>
-                ))}
-              </div>
-            ) : pedidosRecentes.length > 0 ? (
-              <div className="space-y-3">
-                {pedidosRecentes.map(pedido => (
-                  <div key={pedido.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <ShoppingCart className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">
-                        {pedido.cliente?.nome || 'Cliente'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(pedido.created_at), "dd 'de' MMM", { locale: ptBR })}
-                        {pedido.valor_total && ` • ${formatCurrency(pedido.valor_total)}`}
-                      </p>
-                    </div>
-                    {getStatusBadge(pedido.status)}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p>Nenhum pedido ainda</p>
-                <Link to="/pedidos" className="text-sm text-primary hover:underline">
-                  Criar primeiro pedido
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Ações Rápidas */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">Ações Rápidas</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <Link 
-              to="/pedidos" 
-              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 hover:border-primary/50 transition-all group"
-            >
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <ShoppingCart className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-sm">Novo Pedido</p>
-                <p className="text-xs text-muted-foreground">Registrar venda para cliente</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </Link>
-
-            <Link 
-              to="/orcamentos" 
-              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 hover:border-primary/50 transition-all group"
-            >
-              <div className="h-10 w-10 rounded-full bg-info/10 flex items-center justify-center group-hover:bg-info/20 transition-colors">
-                <FileText className="h-5 w-5 text-info" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-sm">Novo Orçamento</p>
-                <p className="text-xs text-muted-foreground">Criar proposta comercial</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </Link>
-
-            <Link 
-              to="/calendario" 
-              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 hover:border-primary/50 transition-all group"
-            >
-              <div className="h-10 w-10 rounded-full bg-warning/10 flex items-center justify-center group-hover:bg-warning/20 transition-colors">
-                <Calendar className="h-5 w-5 text-warning" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-sm">Ver Calendário</p>
-                <p className="text-xs text-muted-foreground">Entregas programadas</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </Link>
-
-            <Link 
-              to="/clientes/novo" 
-              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 hover:border-primary/50 transition-all group"
-            >
-              <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center group-hover:bg-success/20 transition-colors">
-                <Users className="h-5 w-5 text-success" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-sm">Novo Cliente</p>
-                <p className="text-xs text-muted-foreground">Cadastrar novo cliente</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Calendário */}
+      <CalendarioWidget pedidos={pedidos || []} isLoading={isLoading} />
     </div>
   );
 }
