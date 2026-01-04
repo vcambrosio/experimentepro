@@ -89,19 +89,61 @@ export function useDeleteCategoria() {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      console.log('Iniciando exclusão da categoria:', id);
+      
+      // Primeiro, verificar se existem produtos (ativos e inativos) usando esta categoria
+      const { data: produtosUsandoCategoria } = await supabase
+        .from('produtos')
+        .select('id, nome, ativo')
+        .eq('categoria_id', id);
+      
+      console.log('Produtos usando a categoria:', produtosUsandoCategoria);
+      
+      if (produtosUsandoCategoria && produtosUsandoCategoria.length > 0) {
+        // Se existem produtos usando a categoria, mostrar erro
+        const nomesProdutos = produtosUsandoCategoria.map(p => `${p.nome} (${p.ativo ? 'ativo' : 'inativo'})`).join(', ');
+        console.error('Categoria em uso por produtos:', nomesProdutos);
+        throw new Error(
+          `Esta categoria está sendo usada por ${produtosUsandoCategoria.length} produto(s): ${nomesProdutos}. ` +
+          `Remova os produtos ou altere a categoria deles antes de excluir esta categoria.`
+        );
+      }
+      
+      // Se não houver produtos usando a categoria, pode excluir
+      console.log('Excluindo categoria do banco...', id);
+      const { data, error } = await supabase
         .from('categorias')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select();
       
-      if (error) throw error;
+      console.log('Resultado da exclusão:', { data, error });
+      
+      if (error) {
+        console.error('Erro ao excluir categoria:', error);
+        throw new Error(`Erro ao excluir categoria: ${error.message}`);
+      }
+      
+      // Verificar se alguma linha foi realmente excluída
+      if (!data || data.length === 0) {
+        console.error('Nenhuma linha foi excluída. data:', data);
+        throw new Error('Categoria não encontrada ou não foi possível excluí-la. Verifique as permissões no Supabase.');
+      }
+      
+      console.log('Exclusão bem-sucedida, categoria excluída:', data);
     },
-    onSuccess: () => {
+    onSuccess: (_, id) => {
+      console.log('Categoria excluída com sucesso, invalidando queries...');
+      // Invalidar queries para forçar atualização
       queryClient.invalidateQueries({ queryKey: ['categorias'] });
+      queryClient.invalidateQueries({ queryKey: ['categorias', id] });
+      queryClient.invalidateQueries({ queryKey: ['produtos'] });
       toast.success('Categoria excluída com sucesso!');
     },
-    onError: (error) => {
-      toast.error('Erro ao excluir categoria: ' + error.message);
+    onError: (error: any) => {
+      console.error('Error deleting category:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      toast.error(error.message || 'Erro ao excluir categoria');
     },
   });
 }

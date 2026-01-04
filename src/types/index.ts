@@ -24,6 +24,7 @@ export interface SetorCliente {
   cliente_id: string;
   nome_setor?: string;
   responsavel?: string;
+  contato?: string;
   created_at: string;
 }
 

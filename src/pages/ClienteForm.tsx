@@ -50,12 +50,12 @@ export default function ClienteForm() {
   const { data: cliente, isLoading } = useCliente(id || '');
   const createCliente = useCreateCliente();
   const updateCliente = useUpdateCliente();
-  
+
   // Setores management
   const { data: setores, isLoading: loadingSetores } = useSetoresCliente(id || '');
   const createSetor = useCreateSetor();
   const deleteSetor = useDeleteSetor();
-  
+
   const [novoSetor, setNovoSetor] = useState('');
   const [novoResponsavel, setNovoResponsavel] = useState('');
   const [setoresTemp, setSetoresTemp] = useState<Array<{ nome_setor: string; responsavel?: string }>>([]);
@@ -91,7 +91,7 @@ export default function ClienteForm() {
 
   const onSubmit = async (data: ClienteFormData) => {
     let clienteId = id;
-    
+
     if (isEditing) {
       await updateCliente.mutateAsync({
         id,
@@ -116,7 +116,7 @@ export default function ClienteForm() {
         telefone: data.telefone || undefined,
       });
       clienteId = result.id;
-      
+
       // Se houver setores temporários, cria-os agora
       if (data.tipo_pessoa === 'juridica' && setoresTemp.length > 0) {
         for (const setor of setoresTemp) {
@@ -139,7 +139,7 @@ export default function ClienteForm() {
       toast.error('Preencha o nome do setor');
       return;
     }
-    
+
     // Se estiver editando, cria o setor diretamente
     if (id) {
       await createSetor.mutateAsync({
@@ -149,9 +149,12 @@ export default function ClienteForm() {
       });
     } else {
       // Se estiver criando, adiciona ao estado temporário
-      setSetoresTemp([...setoresTemp, { nome_setor: novoSetor, responsavel: novoResponsavel }]);
+      setSetoresTemp([...setoresTemp, {
+        nome_setor: novoSetor,
+        responsavel: novoResponsavel,
+      }]);
     }
-    
+
     setNovoSetor('');
     setNovoResponsavel('');
   };
@@ -255,6 +258,108 @@ export default function ClienteForm() {
             </CardContent>
           </Card>
 
+          {/* Setores Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                Setores da Empresa
+              </CardTitle>
+              <CardDescription>
+                Adicione setores para organizar pedidos por departamento
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Add new setor */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nome do setor"
+                  value={novoSetor}
+                  onChange={(e) => setNovoSetor(e.target.value)}
+                />
+                <Input
+                  placeholder="Responsável (opcional)"
+                  value={novoResponsavel}
+                  onChange={(e) => setNovoResponsavel(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleAddSetor}
+                  disabled={!novoSetor || createSetor.isPending}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Setores list */}
+              {loadingSetores ? (
+                <div className="space-y-2">
+                  {[1, 2].map(i => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : (setores && setores.length > 0) || (setoresTemp && setoresTemp.length > 0) ? (
+                <div className="space-y-2">
+                  {/* Mostra setores do banco (editando) ou setores temporários (criando) */}
+                  {(setores || []).map((setor) => (
+                    <div
+                      key={setor.id || setor.nome_setor}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                    >
+                      <div>
+                        <p className="font-medium">{setor.nome_setor}</p>
+                        {setor.responsavel && (
+                          <p className="text-sm text-muted-foreground">
+                            Responsável: {setor.responsavel}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteSetor(setor.id || setor.nome_setor)}
+                        disabled={deleteSetor.isPending}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {setoresTemp.map((setor, index) => (
+                    <div
+                      key={`temp-${index}`}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                    >
+                      <div>
+                        <p className="font-medium">{setor.nome_setor}</p>
+                        {setor.responsavel && (
+                          <p className="text-sm text-muted-foreground">
+                            Responsável: {setor.responsavel}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteSetor(setor.nome_setor)}
+                        disabled={deleteSetor.isPending}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-4">
+                  Nenhum setor cadastrado
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Contato</CardTitle>
@@ -348,111 +453,6 @@ export default function ClienteForm() {
               />
             </CardContent>
           </Card>
-
-          {/* Setores Card - Only for pessoa jurídica */}
-          {form.watch('tipo_pessoa') === 'juridica' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-primary" />
-                  Setores da Empresa
-                </CardTitle>
-                <CardDescription>
-                  Adicione setores para organizar pedidos por departamento
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Add new setor */}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Nome do setor"
-                    value={novoSetor}
-                    onChange={(e) => setNovoSetor(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Responsável (opcional)"
-                    value={novoResponsavel}
-                    onChange={(e) => setNovoResponsavel(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={handleAddSetor}
-                    disabled={!novoSetor || createSetor.isPending}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {/* Setores list */}
-                {loadingSetores ? (
-                  <div className="space-y-2">
-                    {[1, 2].map(i => (
-                      <Skeleton key={i} className="h-12 w-full" />
-                    ))}
-                  </div>
-                ) : (setores && setores.length > 0) || (setoresTemp && setoresTemp.length > 0) ? (
-                  <div className="space-y-2">
-                    {/* Mostra setores do banco (editando) ou setores temporários (criando) */}
-                    {(setores || []).map((setor) => (
-                      <div
-                        key={setor.id || setor.nome_setor}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium">{setor.nome_setor}</p>
-                          {setor.responsavel && (
-                            <p className="text-sm text-muted-foreground">
-                              Responsável: {setor.responsavel}
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteSetor(setor.id || setor.nome_setor)}
-                          disabled={deleteSetor.isPending}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    {setoresTemp.map((setor, index) => (
-                      <div
-                        key={`temp-${index}`}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium">{setor.nome_setor}</p>
-                          {setor.responsavel && (
-                            <p className="text-sm text-muted-foreground">
-                              Responsável: {setor.responsavel}
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteSetor(setor.nome_setor)}
-                          disabled={deleteSetor.isPending}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-muted-foreground py-4">
-                    Nenhum setor cadastrado
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
 
           <div className="flex justify-end gap-4">
             <Button type="button" variant="outline" onClick={() => navigate('/clientes')}>

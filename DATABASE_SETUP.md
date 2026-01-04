@@ -295,14 +295,132 @@ $$;
 GRANT EXECUTE ON FUNCTION public.delete_user(UUID) TO authenticated;
 ```
 
-### 6. Verificar outras tabelas
+### 6. Tabela `categorias`
+
+Esta tabela armazena as categorias de produtos.
+
+#### Como criar no Supabase:
+
+1. Acesse o painel do Supabase: https://supabase.com/dashboard
+2. Selecione seu projeto
+3. Vá em **SQL Editor** (ícone de terminal no menu lateral)
+4. Copie e execute o SQL abaixo:
+
+```sql
+-- Tabela de categorias
+CREATE TABLE IF NOT EXISTS public.categorias (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.categorias ENABLE ROW LEVEL SECURITY;
+
+-- Política para permitir leitura para todos os usuários autenticados
+CREATE POLICY "Permitir leitura de categorias"
+  ON public.categorias
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Política para permitir inserção para todos os usuários autenticados
+CREATE POLICY "Permitir inserção de categorias"
+  ON public.categorias
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+-- Política para permitir atualização para todos os usuários autenticados
+CREATE POLICY "Permitir atualização de categorias"
+  ON public.categorias
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- Política para permitir exclusão para todos os usuários autenticados
+CREATE POLICY "Permitir exclusão de categorias"
+  ON public.categorias
+  FOR DELETE
+  TO authenticated
+  USING (true);
+
+-- Criar índices para otimizar consultas
+CREATE INDEX IF NOT EXISTS idx_categorias_nome ON public.categorias(nome);
+CREATE INDEX IF NOT EXISTS idx_categorias_ativo ON public.categorias(ativo);
+```
+
+### 7. Tabela `produtos`
+
+Esta tabela armazena os produtos.
+
+#### Como criar no Supabase:
+
+1. Acesse o painel do Supabase: https://supabase.com/dashboard
+2. Selecione seu projeto
+3. Vá em **SQL Editor** (ícone de terminal no menu lateral)
+4. Copie e execute o SQL abaixo:
+
+```sql
+-- Tabela de produtos
+CREATE TABLE IF NOT EXISTS public.produtos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  categoria_id UUID NOT NULL REFERENCES public.categorias(id) ON DELETE RESTRICT,
+  nome TEXT NOT NULL,
+  descricao_padrao TEXT,
+  valor_venda NUMERIC(10, 2) NOT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Habilitar RLS
+ALTER TABLE public.produtos ENABLE ROW LEVEL SECURITY;
+
+-- Política para permitir leitura para todos os usuários autenticados
+CREATE POLICY "Permitir leitura de produtos"
+  ON public.produtos
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Política para permitir inserção para todos os usuários autenticados
+CREATE POLICY "Permitir inserção de produtos"
+  ON public.produtos
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+-- Política para permitir atualização para todos os usuários autenticados
+CREATE POLICY "Permitir atualização de produtos"
+  ON public.produtos
+  FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- Política para permitir exclusão para todos os usuários autenticados
+CREATE POLICY "Permitir exclusão de produtos"
+  ON public.produtos
+  FOR DELETE
+  TO authenticated
+  USING (true);
+
+-- Criar índices para otimizar consultas
+CREATE INDEX IF NOT EXISTS idx_produtos_categoria_id ON public.produtos(categoria_id);
+CREATE INDEX IF NOT EXISTS idx_produtos_ativo ON public.produtos(ativo);
+CREATE INDEX IF NOT EXISTS idx_produtos_nome ON public.produtos(nome);
+```
+
+### 8. Verificar outras tabelas
 
 Certifique-se de que as seguintes tabelas existem no seu banco de dados:
 
 - `clientes`
 - `setores_cliente`
-- `categorias`
-- `produtos`
 - `checklist_itens`
 - `orcamentos`
 - `itens_orcamento`

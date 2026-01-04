@@ -3,9 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Save, Loader2, Plus, Trash2, ListChecks } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Plus, Trash2, ListChecks, FolderPlus } from 'lucide-react';
 import { useProduto, useCreateProduto, useUpdateProduto } from '@/hooks/useProdutos';
-import { useCategorias } from '@/hooks/useCategorias';
+import { useCategorias, useCreateCategoria } from '@/hooks/useCategorias';
 import { useChecklistItens, useCreateChecklistItem, useUpdateChecklistItem, useDeleteChecklistItem } from '@/hooks/useChecklist';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
  
 const produtoSchema = z.object({
   categoria_id: z.string().min(1, 'Categoria é obrigatória'),
@@ -51,6 +60,7 @@ export default function ProdutoForm() {
   const { data: categorias } = useCategorias();
   const createProduto = useCreateProduto();
   const updateProduto = useUpdateProduto();
+  const createCategoria = useCreateCategoria();
   
   // Checklist management
   const { data: checklistItens, isLoading: loadingChecklist } = useChecklistItens(id || '');
@@ -60,6 +70,8 @@ export default function ProdutoForm() {
   
   const [novoItemChecklist, setNovoItemChecklist] = useState('');
   const [novaQuantidade, setNovaQuantidade] = useState(1);
+  const [novaCategoriaDialog, setNovaCategoriaDialog] = useState(false);
+  const [novaCategoriaNome, setNovaCategoriaNome] = useState('');
 
   const form = useForm<ProdutoFormData>({
     resolver: zodResolver(produtoSchema),
@@ -135,6 +147,31 @@ export default function ProdutoForm() {
     });
   };
 
+  const handleCreateCategoria = async () => {
+    if (!novaCategoriaNome.trim()) {
+      toast.error('Nome da categoria é obrigatório');
+      return;
+    }
+
+    try {
+      const novaCategoria = await createCategoria.mutateAsync({
+        nome: novaCategoriaNome.trim(),
+        ativo: true,
+      });
+      
+      // Selecionar a nova categoria criada
+      form.setValue('categoria_id', novaCategoria.id);
+      
+      // Fechar o dialog e limpar o campo
+      setNovaCategoriaDialog(false);
+      setNovaCategoriaNome('');
+      
+      toast.success('Categoria criada com sucesso!');
+    } catch (error) {
+      // O erro já é tratado pelo hook
+    }
+  };
+
   if (isEditing && isLoading) {
     return (
       <div className="space-y-6">
@@ -185,6 +222,16 @@ export default function ProdutoForm() {
                             {categoria.nome}
                           </SelectItem>
                         ))}
+                        <div className="border-t">
+                          <button
+                            type="button"
+                            onClick={() => setNovaCategoriaDialog(true)}
+                            className="w-full px-2 py-1.5 text-sm text-primary hover:bg-muted flex items-center gap-2"
+                          >
+                            <FolderPlus className="h-4 w-4" />
+                            Nova Categoria
+                          </button>
+                        </div>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -378,6 +425,61 @@ export default function ProdutoForm() {
           </div>
         </form>
       </Form>
+
+      {/* Dialog para criar nova categoria */}
+      <Dialog open={novaCategoriaDialog} onOpenChange={setNovaCategoriaDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderPlus className="h-5 w-5 text-primary" />
+              Nova Categoria
+            </DialogTitle>
+            <DialogDescription>
+              Crie uma nova categoria para o produto
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nome da Categoria *</label>
+              <Input
+                placeholder="Ex: Bebidas, Salgados, Doces"
+                value={novaCategoriaNome}
+                onChange={(e) => setNovaCategoriaNome(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCreateCategoria();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setNovaCategoriaDialog(false);
+              setNovaCategoriaNome('');
+            }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateCategoria}
+              disabled={!novaCategoriaNome.trim() || createCategoria.isPending}
+            >
+              {createCategoria.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                <>
+                  <FolderPlus className="mr-2 h-4 w-4" />
+                  Criar Categoria
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

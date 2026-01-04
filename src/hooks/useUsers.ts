@@ -88,19 +88,49 @@ export function useUpdateUser() {
 
   return useMutation({
     mutationFn: async ({ userId, fullName, email }: { userId: string; fullName?: string; email?: string }) => {
-      // Atualizar profile do usuário
+      console.log('Atualizando usuário:', { userId, fullName, email });
+      
+      // Atualizar profile do usuário (apenas full_name)
       const updates: any = {};
       if (fullName !== undefined) updates.full_name = fullName;
-      if (email !== undefined) updates.email = email;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', userId);
+      if (Object.keys(updates).length > 0) {
+        console.log('Atualizando profile com:', updates);
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', userId);
 
-      if (error) throw error;
+        if (profileError) {
+          console.error('Erro ao atualizar profile:', profileError);
+          throw profileError;
+        }
+      }
 
-      return { userId, fullName, email };
+      // Atualizar o display name no Supabase Auth usando uma função RPC
+      // Isso atualiza o raw_user_meta_data->>'full_name'
+      if (fullName !== undefined) {
+        console.log('Atualizando display name no Supabase Auth para:', fullName);
+        const { error: authError } = await supabase.rpc('update_user_metadata', {
+          p_user_id: userId,
+          p_full_name: fullName,
+        });
+
+        if (authError) {
+          console.warn('Não foi possível atualizar o display name no Supabase Auth:', authError);
+          // Não lançar erro, pois a atualização do profile foi bem-sucedida
+        }
+      }
+
+      // Nota: O email não pode ser atualizado diretamente pela API do cliente
+      // Para atualizar o email, seria necessário usar a API admin do Supabase
+      // Por enquanto, apenas o nome pode ser editado
+      if (email !== undefined) {
+        console.warn('Atualização de email não é suportada pela API do cliente do Supabase');
+        throw new Error('A atualização de email não é suportada. Para alterar o email, o usuário deve fazer isso nas configurações da conta.');
+      }
+
+      return { userId, fullName };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });

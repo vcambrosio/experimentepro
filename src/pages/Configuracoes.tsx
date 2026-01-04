@@ -90,7 +90,6 @@ type UsuarioFormData = z.infer<typeof usuarioSchema>;
 
 const editUsuarioSchema = z.object({
   fullName: z.string().min(1, 'Nome completo é obrigatório'),
-  email: z.string().email('Email inválido'),
 });
 
 type EditUsuarioFormData = z.infer<typeof editUsuarioSchema>;
@@ -118,8 +117,7 @@ export default function Configuracoes() {
     open: boolean;
     userId: string;
     fullName: string;
-    email: string;
-  }>({ open: false, userId: '', fullName: '', email: '' });
+  }>({ open: false, userId: '', fullName: '' });
   const [uploadDialog, setUploadDialog] = useState<{
     open: boolean;
     type: UploadType;
@@ -153,7 +151,6 @@ export default function Configuracoes() {
     resolver: zodResolver(editUsuarioSchema),
     defaultValues: {
       fullName: '',
-      email: '',
     },
   });
   
@@ -173,10 +170,9 @@ export default function Configuracoes() {
     if (editDialog.open) {
       editUserForm.reset({
         fullName: editDialog.fullName,
-        email: editDialog.email,
       });
     }
-  }, [editDialog.open, editDialog.fullName, editDialog.email, editUserForm]);
+  }, [editDialog.open, editDialog.fullName, editUserForm]);
 
   const handleUploadLogo = async (event: React.ChangeEvent<HTMLInputElement>, type: UploadType) => {
     const file = event.target.files?.[0];
@@ -265,8 +261,8 @@ export default function Configuracoes() {
     setConfirmDialog({ open: false, userId: '', userName: '', action: 'promote' });
   };
 
-  const handleEditUser = (userId: string, fullName: string, email: string) => {
-    setEditDialog({ open: true, userId, fullName, email });
+  const handleEditUser = (userId: string, fullName: string) => {
+    setEditDialog({ open: true, userId, fullName });
   };
 
   const handleDeleteUser = (userId: string, userName: string) => {
@@ -282,9 +278,8 @@ export default function Configuracoes() {
     await updateUser.mutateAsync({
       userId: editDialog.userId,
       fullName: data.fullName,
-      email: data.email,
     });
-    setEditDialog({ open: false, userId: '', fullName: '', email: '' });
+    setEditDialog({ open: false, userId: '', fullName: '' });
   };
 
   const getInitials = (name?: string, email?: string) => {
@@ -720,7 +715,7 @@ export default function Configuracoes() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleEditUser(u.id, u.full_name || '', u.email)}
+                                  onClick={() => handleEditUser(u.id, u.full_name || '')}
                                   disabled={updateUser.isPending}
                                 >
                                   <Edit className="h-4 w-4 mr-2" />
@@ -993,21 +988,8 @@ export default function Configuracoes() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={editUserForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email *</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="email@exemplo.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <DialogFooter>
-                <Button variant="outline" onClick={() => setEditDialog({ open: false, userId: '', fullName: '', email: '' })}>
+                <Button variant="outline" onClick={() => setEditDialog({ open: false, userId: '', fullName: '' })}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={updateUser.isPending}>
