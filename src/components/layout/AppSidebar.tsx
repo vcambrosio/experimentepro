@@ -7,7 +7,8 @@ import {
   FileText, 
   ShoppingCart,
   Settings,
-  LogOut
+  LogOut,
+  TrendingUp
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +36,10 @@ const menuItems = [
   { title: 'Produtos', icon: Package, path: '/produtos' },
   { title: 'Categorias', icon: FolderOpen, path: '/categorias' },
   { title: 'Configurações', icon: Settings, path: '/configuracoes' },
+];
+
+const adminMenuItems = [
+  { title: 'Financeiro', icon: TrendingUp, path: '/financeiro' },
 ];
 
 export function AppSidebar() {
@@ -90,6 +95,28 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminMenuItems.map((item) => (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton 
+                      onClick={() => navigate(item.path)}
+                      isActive={location.pathname === item.path}
+                      className="cursor-pointer transition-all duration-200 hover:bg-secondary hover:text-primary data-[active=true]:bg-primary-light data-[active=true]:text-primary-foreground"
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">

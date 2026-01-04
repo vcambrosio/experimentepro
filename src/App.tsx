@@ -22,6 +22,7 @@ const ProdutoForm = lazy(() => import("./pages/ProdutoForm"));
 const Categorias = lazy(() => import("./pages/Categorias"));
 const CategoriaForm = lazy(() => import("./pages/CategoriaForm"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes"));
+const Financeiro = lazy(() => import("./pages/Financeiro"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -117,6 +118,11 @@ const App = () => (
               <Route path="/configuracoes" element={
                 <ProtectedRoute requireAdmin>
                   <AppLayout><Configuracoes /></AppLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/financeiro" element={
+                <ProtectedRoute requireAdmin>
+                  <AppLayout><Financeiro /></AppLayout>
                 </ProtectedRoute>
               } />
               
