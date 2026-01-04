@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, User, Package, FileText, Loader2 } from 'lucide-react';
+import { Calendar, User, Package, FileText, Loader2, Download } from 'lucide-react';
+import { pdf } from '@react-pdf/renderer';
 import { useOrcamento } from '@/hooks/useOrcamentos';
+import { useConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +23,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { OrcamentoPDF } from './OrcamentoPDF';
+import { toast } from 'sonner';
 
 interface OrcamentoViewDialogProps {
   open: boolean;
@@ -29,6 +35,8 @@ interface OrcamentoViewDialogProps {
 export function OrcamentoViewDialog({ open, onOpenChange, orcamentoId }: OrcamentoViewDialogProps) {
   const { isAdmin } = useAuth();
   const { data: orcamento, isLoading } = useOrcamento(orcamentoId || '');
+  const { data: config } = useConfiguracaoEmpresa();
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -59,14 +67,66 @@ export function OrcamentoViewDialog({ open, onOpenChange, orcamentoId }: Orcamen
     expirado: 'Expirado',
   };
 
+  const handleDownloadPdf = async () => {
+    if (!orcamento) return;
+    
+    setGeneratingPdf(true);
+    try {
+      const blob = await pdf(
+        <OrcamentoPDF 
+          orcamento={orcamento}
+          empresaNome={config?.nome_empresa}
+          empresaTelefone={config?.telefone}
+          empresaEmail={config?.email}
+          empresaEndereco={config?.endereco}
+        />
+      ).toBlob();
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${orcamento.numero_orcamento}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success('PDF gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      toast.error('Erro ao gerar PDF. Tente novamente.');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            Orçamento {orcamento?.numero_orcamento}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Orçamento {orcamento?.numero_orcamento}
+            </DialogTitle>
+            {orcamento && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleDownloadPdf}
+                disabled={generatingPdf}
+              >
+                {generatingPdf ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar PDF
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {isLoading ? (
