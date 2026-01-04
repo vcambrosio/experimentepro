@@ -10,6 +10,8 @@ import {
   isSameDay,
   addMonths,
   subMonths,
+  addWeeks,
+  subWeeks,
   isToday
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -20,13 +22,21 @@ import {
   Clock,
   User,
   Plus,
-  Pencil
+  Pencil,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pedido, StatusPedido } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -36,6 +46,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { PedidoFormDialog } from '@/components/pedidos/PedidoFormDialog';
+
+type ViewMode = 'month' | 'week';
 
 interface CalendarioWidgetProps {
   pedidos: Pedido[];
@@ -58,17 +70,24 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
   const { isAdmin } = useAuth();
   
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
 
-  // Get days for the current month view
+  // Get days for the current view
   const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 });
-    const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 });
-    return eachDayOfInterval({ start, end });
-  }, [currentDate]);
+    if (viewMode === 'month') {
+      const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 });
+      const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 });
+      return eachDayOfInterval({ start, end });
+    } else {
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 });
+      const end = endOfWeek(currentDate, { weekStartsOn: 0 });
+      return eachDayOfInterval({ start, end });
+    }
+  }, [currentDate, viewMode]);
 
   // Group pedidos by date
   const pedidosByDate = useMemo(() => {
@@ -91,11 +110,19 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
   }, [selectedDate, pedidosByDate]);
 
   const navigatePrev = () => {
-    setCurrentDate(subMonths(currentDate, 1));
+    if (viewMode === 'month') {
+      setCurrentDate(subMonths(currentDate, 1));
+    } else {
+      setCurrentDate(subWeeks(currentDate, 1));
+    }
   };
 
   const navigateNext = () => {
-    setCurrentDate(addMonths(currentDate, 1));
+    if (viewMode === 'month') {
+      setCurrentDate(addMonths(currentDate, 1));
+    } else {
+      setCurrentDate(addWeeks(currentDate, 1));
+    }
   };
 
   const goToToday = () => {
@@ -139,11 +166,72 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
 
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+  // Summary stats
+  const entregasHoje = pedidosByDate[format(new Date(), 'yyyy-MM-dd')]?.length || 0;
+  const pendentesEsteMes = pedidos?.filter(p => 
+    p.status === 'pendente' && 
+    isSameMonth(new Date(p.data_hora_entrega), currentDate)
+  ).length || 0;
+  const totalEsteMes = pedidos?.filter(p => 
+    isSameMonth(new Date(p.data_hora_entrega), currentDate)
+  ).length || 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Entregas Hoje
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">
+              {entregasHoje}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Pendentes Este Mês
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-warning-foreground">
+              {pendentesEsteMes}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Este Mês
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {totalEsteMes}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Calendar */}
       <Card>
         <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" onClick={navigatePrev}>
                 <ChevronLeft className="h-4 w-4" />
@@ -156,18 +244,33 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
               </Button>
             </div>
             
-            <CardTitle className="text-lg">
-              {format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })}
+            <CardTitle className="text-lg text-center">
+              {viewMode === 'month' 
+                ? format(currentDate, "MMMM 'de' yyyy", { locale: ptBR })
+                : `Semana de ${format(startOfWeek(currentDate, { weekStartsOn: 0 }), "dd 'de' MMMM", { locale: ptBR })}`
+              }
             </CardTitle>
             
-            <div className="flex items-center gap-3 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-warning" />
-                <span className="text-muted-foreground">Pendente</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-success" />
-                <span className="text-muted-foreground">Executado</span>
+            <div className="flex items-center gap-2">
+              <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="month">Mensal</SelectItem>
+                  <SelectItem value="week">Semanal</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <div className="hidden md:flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-warning" />
+                  <span className="text-muted-foreground">Pendente</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-success" />
+                  <span className="text-muted-foreground">Executado</span>
+                </div>
               </div>
             </div>
           </div>
@@ -187,7 +290,10 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
           </div>
 
           {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-1">
+          <div className={cn(
+            "grid grid-cols-7 gap-1",
+            viewMode === 'week' ? 'min-h-[300px]' : ''
+          )}>
             {days.map((day, index) => {
               const dateKey = format(day, 'yyyy-MM-dd');
               const dayPedidos = pedidosByDate[dateKey] || [];
@@ -199,8 +305,8 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                   key={index}
                   onClick={() => handleDayClick(day)}
                   className={cn(
-                    "min-h-[70px] p-1 border rounded-lg cursor-pointer transition-colors",
-                    !isCurrentMonth && "bg-muted/30 opacity-50",
+                    "min-h-[80px] p-1 border rounded-lg cursor-pointer transition-colors",
+                    !isCurrentMonth && viewMode === 'month' && "bg-muted/30 opacity-50",
                     isToday(day) && "border-primary border-2",
                     isSelected && "ring-2 ring-primary",
                     dayPedidos.length > 0 && "hover:bg-accent/50",
@@ -210,14 +316,14 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                   <div className={cn(
                     "text-xs font-medium mb-1",
                     isToday(day) && "text-primary",
-                    !isCurrentMonth && "text-muted-foreground"
+                    !isCurrentMonth && viewMode === 'month' && "text-muted-foreground"
                   )}>
                     {format(day, 'd')}
                   </div>
                   
                   {/* Pedidos indicators */}
                   <div className="space-y-0.5">
-                    {dayPedidos.slice(0, 2).map((pedido) => (
+                    {dayPedidos.slice(0, viewMode === 'week' ? 4 : 2).map((pedido) => (
                       <div
                         key={pedido.id}
                         className={cn(
@@ -225,12 +331,17 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                           statusColors[pedido.status]
                         )}
                       >
-                        {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
+                        <span className="hidden sm:inline">
+                          {format(new Date(pedido.data_hora_entrega), 'HH:mm')} - {pedido.cliente?.nome?.split(' ')[0]}
+                        </span>
+                        <span className="sm:hidden">
+                          {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
+                        </span>
                       </div>
                     ))}
-                    {dayPedidos.length > 2 && (
+                    {dayPedidos.length > (viewMode === 'week' ? 4 : 2) && (
                       <div className="text-[10px] text-muted-foreground text-center">
-                        +{dayPedidos.length - 2}
+                        +{dayPedidos.length - (viewMode === 'week' ? 4 : 2)}
                       </div>
                     )}
                   </div>
@@ -287,13 +398,32 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                         <User className="h-4 w-4 text-muted-foreground" />
                         <span>{pedido.cliente?.nome}</span>
                       </div>
+                      
+                      {pedido.setor && (
+                        <p className="text-xs text-muted-foreground ml-6">
+                          {pedido.setor.nome_setor}
+                        </p>
+                      )}
                     </div>
                     
                     <div className="flex flex-col items-end gap-2">
                       {isAdmin && (
-                        <p className="font-semibold text-primary">
-                          {formatCurrency(pedido.valor_total)}
-                        </p>
+                        <>
+                          <p className="font-semibold text-primary">
+                            {formatCurrency(pedido.valor_total)}
+                          </p>
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "text-xs",
+                              pedido.status_pagamento === 'pago' 
+                                ? 'bg-success/20 text-success-foreground' 
+                                : 'bg-warning/20 text-warning-foreground'
+                            )}
+                          >
+                            {pedido.status_pagamento === 'pago' ? 'Pago' : 'A Pagar'}
+                          </Badge>
+                        </>
                       )}
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <Pencil className="h-4 w-4" />
