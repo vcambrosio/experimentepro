@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://tnmgfvumwlcrbyohckre.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRubWdmdnVtd2xjcmJ5b2hja3JlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MzQ1NTEsImV4cCI6MjA4MzExMDU1MX0.ojV0M3wv3N6SvIYJg1_5C3_Wf0qUCdpJzDESd0317-s';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('Supabase credentials not found. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+}
+
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 export type UserRole = 'admin' | 'user';
 
