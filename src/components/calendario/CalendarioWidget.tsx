@@ -12,7 +12,9 @@ import {
   subMonths,
   addWeeks,
   subWeeks,
-  isToday
+  isToday,
+  setHours,
+  setMinutes
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -23,13 +25,30 @@ import {
   User,
   Plus,
   Pencil,
-  Loader2
+  Loader2,
+  GripVertical,
+  Move
 } from 'lucide-react';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  useDraggable,
+  useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUpdatePedido } from '@/hooks/usePedidos';
 import { Pedido, StatusPedido } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -40,12 +59,15 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { PedidoFormDialog } from '@/components/pedidos/PedidoFormDialog';
+import { toast } from 'sonner';
 
 type ViewMode = 'month' | 'week';
 
@@ -66,8 +88,85 @@ const statusLabels: Record<StatusPedido, string> = {
   cancelado: 'Cancelado',
 };
 
+// Draggable Pedido Component
+function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewMode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: pedido.id,
+    data: { pedido },
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "text-[10px] px-1 py-0.5 rounded truncate border-l-2 cursor-grab active:cursor-grabbing flex items-center gap-0.5",
+        statusColors[pedido.status]
+      )}
+      {...listeners}
+      {...attributes}
+    >
+      <GripVertical className="h-2 w-2 shrink-0 opacity-50" />
+      <span className="hidden sm:inline truncate">
+        {format(new Date(pedido.data_hora_entrega), 'HH:mm')} - {pedido.cliente?.nome?.split(' ')[0]}
+      </span>
+      <span className="sm:hidden">
+        {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
+      </span>
+    </div>
+  );
+}
+
+// Droppable Day Cell
+function DroppableDay({ 
+  day, 
+  isCurrentMonth, 
+  isSelected, 
+  viewMode,
+  pedidos,
+  onDayClick,
+  children 
+}: { 
+  day: Date;
+  isCurrentMonth: boolean;
+  isSelected: boolean;
+  viewMode: ViewMode;
+  pedidos: Pedido[];
+  onDayClick: () => void;
+  children: React.ReactNode;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: format(day, 'yyyy-MM-dd'),
+    data: { day },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      onClick={onDayClick}
+      className={cn(
+        "min-h-[80px] p-1 border rounded-lg cursor-pointer transition-colors",
+        !isCurrentMonth && viewMode === 'month' && "bg-muted/30 opacity-50",
+        isToday(day) && "border-primary border-2",
+        isSelected && "ring-2 ring-primary",
+        pedidos.length > 0 && "hover:bg-accent/50",
+        isOver && "bg-primary/20 border-primary border-2",
+        "hover:border-primary/50"
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) {
   const { isAdmin } = useAuth();
+  const updatePedido = useUpdatePedido();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -75,6 +174,23 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
+  
+  // Drag and drop state
+  const [activeDragPedido, setActiveDragPedido] = useState<Pedido | null>(null);
+  const [rescheduleDialog, setRescheduleDialog] = useState<{
+    open: boolean;
+    pedido: Pedido | null;
+    newDate: Date | null;
+    newTime: string;
+  }>({ open: false, pedido: null, newDate: null, newTime: '12:00' });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   // Get days for the current view
   const days = useMemo(() => {
@@ -155,6 +271,83 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
     setSelectedPedido(null);
     setDialogOpen(false);
     setFormDialogOpen(true);
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const pedido = pedidos.find(p => p.id === active.id);
+    if (pedido) {
+      setActiveDragPedido(pedido);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragPedido(null);
+
+    if (!over) return;
+
+    const pedidoId = active.id as string;
+    const newDateKey = over.id as string;
+    const pedido = pedidos.find(p => p.id === pedidoId);
+    
+    if (!pedido) return;
+
+    const currentDateKey = format(new Date(pedido.data_hora_entrega), 'yyyy-MM-dd');
+    
+    // Only show dialog if dropping on a different day
+    if (currentDateKey !== newDateKey) {
+      const newDate = new Date(newDateKey);
+      const currentTime = format(new Date(pedido.data_hora_entrega), 'HH:mm');
+      
+      setRescheduleDialog({
+        open: true,
+        pedido,
+        newDate,
+        newTime: currentTime,
+      });
+    }
+  };
+
+  const confirmReschedule = async () => {
+    if (!rescheduleDialog.pedido || !rescheduleDialog.newDate) return;
+
+    const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
+    const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
+
+    try {
+      await updatePedido.mutateAsync({
+        id: rescheduleDialog.pedido.id,
+        data_hora_entrega: newDateTime.toISOString(),
+      });
+      
+      setRescheduleDialog({ open: false, pedido: null, newDate: null, newTime: '12:00' });
+    } catch (error) {
+      console.error('Error rescheduling:', error);
+    }
+  };
+
+  const openEditAfterReschedule = async () => {
+    if (!rescheduleDialog.pedido || !rescheduleDialog.newDate) return;
+
+    const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
+    const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
+
+    try {
+      await updatePedido.mutateAsync({
+        id: rescheduleDialog.pedido.id,
+        data_hora_entrega: newDateTime.toISOString(),
+      });
+      
+      // Open edit dialog
+      setSelectedPedido(rescheduleDialog.pedido);
+      setSelectedDate(rescheduleDialog.newDate);
+      setRescheduleDialog({ open: false, pedido: null, newDate: null, newTime: '12:00' });
+      setFormDialogOpen(true);
+    } catch (error) {
+      console.error('Error rescheduling:', error);
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -264,12 +457,8 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
               
               <div className="hidden md:flex items-center gap-3 text-xs">
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-warning" />
-                  <span className="text-muted-foreground">Pendente</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-success" />
-                  <span className="text-muted-foreground">Executado</span>
+                  <Move className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Arraste para reagendar</span>
                 </div>
               </div>
             </div>
@@ -289,66 +478,70 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
             ))}
           </div>
 
-          {/* Calendar grid */}
-          <div className={cn(
-            "grid grid-cols-7 gap-1",
-            viewMode === 'week' ? 'min-h-[300px]' : ''
-          )}>
-            {days.map((day, index) => {
-              const dateKey = format(day, 'yyyy-MM-dd');
-              const dayPedidos = pedidosByDate[dateKey] || [];
-              const isCurrentMonth = isSameMonth(day, currentDate);
-              const isSelected = selectedDate && isSameDay(day, selectedDate);
-              
-              return (
-                <div
-                  key={index}
-                  onClick={() => handleDayClick(day)}
-                  className={cn(
-                    "min-h-[80px] p-1 border rounded-lg cursor-pointer transition-colors",
-                    !isCurrentMonth && viewMode === 'month' && "bg-muted/30 opacity-50",
-                    isToday(day) && "border-primary border-2",
-                    isSelected && "ring-2 ring-primary",
-                    dayPedidos.length > 0 && "hover:bg-accent/50",
-                    "hover:border-primary/50"
-                  )}
-                >
-                  <div className={cn(
-                    "text-xs font-medium mb-1",
-                    isToday(day) && "text-primary",
-                    !isCurrentMonth && viewMode === 'month' && "text-muted-foreground"
-                  )}>
-                    {format(day, 'd')}
-                  </div>
-                  
-                  {/* Pedidos indicators */}
-                  <div className="space-y-0.5">
-                    {dayPedidos.slice(0, viewMode === 'week' ? 4 : 2).map((pedido) => (
-                      <div
-                        key={pedido.id}
-                        className={cn(
-                          "text-[10px] px-1 py-0.5 rounded truncate border-l-2",
-                          statusColors[pedido.status]
-                        )}
-                      >
-                        <span className="hidden sm:inline">
-                          {format(new Date(pedido.data_hora_entrega), 'HH:mm')} - {pedido.cliente?.nome?.split(' ')[0]}
-                        </span>
-                        <span className="sm:hidden">
-                          {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
-                        </span>
-                      </div>
-                    ))}
-                    {dayPedidos.length > (viewMode === 'week' ? 4 : 2) && (
-                      <div className="text-[10px] text-muted-foreground text-center">
-                        +{dayPedidos.length - (viewMode === 'week' ? 4 : 2)}
-                      </div>
-                    )}
+          {/* Calendar grid with DnD */}
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className={cn(
+              "grid grid-cols-7 gap-1",
+              viewMode === 'week' ? 'min-h-[300px]' : ''
+            )}>
+              {days.map((day, index) => {
+                const dateKey = format(day, 'yyyy-MM-dd');
+                const dayPedidos = pedidosByDate[dateKey] || [];
+                const isCurrentMonth = isSameMonth(day, currentDate);
+                const isSelected = selectedDate && isSameDay(day, selectedDate);
+                
+                return (
+                  <DroppableDay
+                    key={index}
+                    day={day}
+                    isCurrentMonth={isCurrentMonth}
+                    isSelected={isSelected}
+                    viewMode={viewMode}
+                    pedidos={dayPedidos}
+                    onDayClick={() => handleDayClick(day)}
+                  >
+                    <div className={cn(
+                      "text-xs font-medium mb-1",
+                      isToday(day) && "text-primary",
+                      !isCurrentMonth && viewMode === 'month' && "text-muted-foreground"
+                    )}>
+                      {format(day, 'd')}
+                    </div>
+                    
+                    {/* Pedidos indicators */}
+                    <div className="space-y-0.5" onClick={(e) => e.stopPropagation()}>
+                      {dayPedidos.slice(0, viewMode === 'week' ? 4 : 2).map((pedido) => (
+                        <DraggablePedido key={pedido.id} pedido={pedido} viewMode={viewMode} />
+                      ))}
+                      {dayPedidos.length > (viewMode === 'week' ? 4 : 2) && (
+                        <div className="text-[10px] text-muted-foreground text-center">
+                          +{dayPedidos.length - (viewMode === 'week' ? 4 : 2)}
+                        </div>
+                      )}
+                    </div>
+                  </DroppableDay>
+                );
+              })}
+            </div>
+
+            {/* Drag Overlay */}
+            <DragOverlay>
+              {activeDragPedido && (
+                <div className={cn(
+                  "text-[10px] px-2 py-1 rounded border-l-2 shadow-lg bg-card",
+                  statusColors[activeDragPedido.status]
+                )}>
+                  <div className="font-medium">
+                    {format(new Date(activeDragPedido.data_hora_entrega), 'HH:mm')} - {activeDragPedido.cliente?.nome}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </DragOverlay>
+          </DndContext>
         </CardContent>
       </Card>
 
@@ -434,6 +627,57 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
               ))}
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Confirmation Dialog */}
+      <Dialog open={rescheduleDialog.open} onOpenChange={(open) => setRescheduleDialog(prev => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Move className="h-5 w-5 text-primary" />
+              Reagendar Pedido
+            </DialogTitle>
+            <DialogDescription>
+              Confirme a nova data e horário para o pedido de <strong>{rescheduleDialog.pedido?.cliente?.nome}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nova Data</Label>
+              <div className="p-3 bg-muted rounded-lg font-medium">
+                {rescheduleDialog.newDate && format(rescheduleDialog.newDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="newTime">Novo Horário</Label>
+              <Input
+                id="newTime"
+                type="time"
+                value={rescheduleDialog.newTime}
+                onChange={(e) => setRescheduleDialog(prev => ({ ...prev, newTime: e.target.value }))}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setRescheduleDialog({ open: false, pedido: null, newDate: null, newTime: '12:00' })}>
+              Cancelar
+            </Button>
+            <Button variant="secondary" onClick={openEditAfterReschedule} disabled={updatePedido.isPending}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Reagendar e Editar
+            </Button>
+            <Button onClick={confirmReschedule} disabled={updatePedido.isPending}>
+              {updatePedido.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Confirmar'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
