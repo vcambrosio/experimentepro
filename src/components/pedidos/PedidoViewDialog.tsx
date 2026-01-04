@@ -26,6 +26,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { PedidoPDF } from './PedidoPDF';
 import { PedidoChecklist } from './PedidoChecklist';
+import { useThermalPrint } from './PedidoThermalPrint';
 import { toast } from 'sonner';
 
 interface PedidoViewDialogProps {
@@ -40,6 +41,7 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
   const { data: config } = useConfiguracaoEmpresa();
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [activeTab, setActiveTab] = useState('detalhes');
+  const { print: thermalPrint } = useThermalPrint();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -94,6 +96,11 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
     }
   };
 
+  const handleThermalPrint = () => {
+    if (!pedido) return;
+    thermalPrint(pedido, config?.nome_empresa, isAdmin);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -101,21 +108,30 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
           <div className="flex items-center justify-between">
             <DialogTitle>Detalhes do Pedido</DialogTitle>
             {pedido && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleDownloadPdf}
-                disabled={generatingPdf}
-              >
-                {generatingPdf ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Printer className="h-4 w-4 mr-2" />
-                    Imprimir
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleThermalPrint}
+                  title="Impressão térmica direta"
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Imprimir
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={handleDownloadPdf}
+                  disabled={generatingPdf}
+                  title="Baixar como PDF"
+                >
+                  {generatingPdf ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </DialogHeader>
