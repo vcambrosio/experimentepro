@@ -37,10 +37,11 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
   // Build checklist with product names
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
   
+  // Build checklist with calculated quantities based on pedido quantities
   const checklistData = useMemo(() => {
     if (!checklistItens || !pedido.itens) return [];
     
-    const result: { produtoNome: string; produtoId: string; itens: ChecklistItem[] }[] = [];
+    const result: { produtoNome: string; produtoId: string; quantidade: number; itens: (ChecklistItem & { quantidadeTotal: number })[] }[] = [];
     
     pedido.itens.forEach((pedidoItem) => {
       const produtoChecklist = checklistItens.filter(
@@ -51,7 +52,11 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
         result.push({
           produtoNome: pedidoItem.produto?.nome || 'Produto',
           produtoId: pedidoItem.produto_id,
-          itens: produtoChecklist,
+          quantidade: pedidoItem.quantidade,
+          itens: produtoChecklist.map(ci => ({
+            ...ci,
+            quantidadeTotal: ci.quantidade_por_unidade * pedidoItem.quantidade,
+          })),
         });
       }
     });
@@ -153,7 +158,7 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
             {checklistData.map((produto, produtoIndex) => (
               <div key={produtoIndex} className="space-y-3">
                 <h4 className="font-medium text-sm bg-muted/50 px-3 py-2 rounded-md">
-                  {produto.produtoNome}
+                  {produto.produtoNome} <span className="text-muted-foreground">(x{produto.quantidade})</span>
                 </h4>
                 <div className="space-y-2 pl-3">
                   {produto.itens.map((item) => (
@@ -174,7 +179,7 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
                             : ''
                         }`}
                       >
-                        {item.item}
+                        <span className="font-medium">{item.quantidadeTotal}x</span> {item.descricao}
                       </label>
                     </div>
                   ))}
