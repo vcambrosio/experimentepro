@@ -47,9 +47,10 @@ interface PedidoFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pedido: Pedido | null;
+  initialDate?: Date;
 }
 
-export function PedidoFormDialog({ open, onOpenChange, pedido }: PedidoFormDialogProps) {
+export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate }: PedidoFormDialogProps) {
   const { user } = useAuth();
   const { data: clientes } = useClientes();
   const { data: produtos } = useProdutos();
@@ -95,7 +96,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido }: PedidoFormDialo
   const resetForm = () => {
     setClienteId('');
     setSetorId('');
-    setDataEntrega(undefined);
+    setDataEntrega(initialDate || undefined);
     setHoraEntrega('12:00');
     setItens([]);
   };
