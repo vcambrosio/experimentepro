@@ -111,8 +111,16 @@ export default function Pedidos() {
     }
   }, []);
 
-  const filteredPedidos = pedidos?.filter(pedido => {
-    const matchesSearch = 
+  // Filtra apenas pedidos de Evento ou Cesta (data de entrega diferente da data de criação)
+  const pedidosEventoCesta = pedidos?.filter(pedido => {
+    const dataCriacao = new Date(pedido.created_at);
+    const dataEntrega = new Date(pedido.data_hora_entrega);
+    // Considera como Evento ou Cesta se a data de entrega for diferente da data de criação
+    return dataCriacao.toDateString() !== dataEntrega.toDateString();
+  });
+
+  const filteredPedidos = pedidosEventoCesta?.filter(pedido => {
+    const matchesSearch =
       pedido.cliente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
       pedido.id.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || pedido.status === statusFilter;
@@ -280,6 +288,7 @@ export default function Pedidos() {
               <TableRow>
                 <TableHead>Data Entrega</TableHead>
                 <TableHead>Cliente</TableHead>
+                <TableHead>Produtos</TableHead>
                 <TableHead>Setor</TableHead>
                 <TableHead>Nota Fiscal</TableHead>
                 <TableHead>Status</TableHead>
@@ -306,6 +315,24 @@ export default function Pedidos() {
                   </TableCell>
                   <TableCell className="font-medium">
                     {pedido.cliente?.nome || 'Cliente não encontrado'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      {pedido.itens && pedido.itens.length > 0 ? (
+                        pedido.itens.slice(0, 3).map((item, index) => (
+                          <span key={index} className="text-sm">
+                            {item.produto?.nome || 'Produto não encontrado'}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                      {pedido.itens && pedido.itens.length > 3 && (
+                        <span className="text-xs text-muted-foreground">
+                          +{pedido.itens.length - 3} produtos
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
@@ -434,6 +461,7 @@ export default function Pedidos() {
         open={viewDialogOpen}
         onOpenChange={setViewDialogOpen}
         pedidoId={selectedPedido?.id}
+        isVendaLoja={false}
       />
 
       {/* Delete Confirmation */}

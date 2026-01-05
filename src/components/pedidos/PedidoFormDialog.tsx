@@ -7,6 +7,7 @@ import { useProdutos } from '@/hooks/useProdutos';
 import { useCreatePedido, useUpdatePedido, usePedido } from '@/hooks/usePedidos';
 import { Pedido, ItemPedido } from '@/types';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -271,10 +272,39 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
     }));
   
     if (isEditing && pedido) {
+      // Atualizar o pedido
       await updatePedido.mutateAsync({
         id: pedido.id,
         ...pedidoData,
       });
+      
+      // Atualizar os itens: primeiro deleta todos os itens existentes
+      const { error: deleteError } = await supabase
+        .from('itens_pedido')
+        .delete()
+        .eq('pedido_id', pedido.id);
+      
+      if (deleteError) {
+        console.error('Erro ao deletar itens antigos:', deleteError);
+        throw deleteError;
+      }
+      
+      // Depois insere os novos itens
+      if (itensData.length > 0) {
+        const itensWithPedidoId = itensData.map(item => ({
+          ...item,
+          pedido_id: pedido.id,
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('itens_pedido')
+          .insert(itensWithPedidoId);
+        
+        if (insertError) {
+          console.error('Erro ao inserir novos itens:', insertError);
+          throw insertError;
+        }
+      }
     } else {
       await createPedido.mutateAsync({
         pedido: pedidoData,
@@ -472,16 +502,20 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                             min="1"
                             value={item.quantidade}
                             onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
+                            className="no-spinner"
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>Valor Unit.</Label>
                           <Input
-                            type="number"
-                            step="0.01"
+                            type="text"
                             min="0"
-                            value={item.valor_unitario}
-                            onChange={(e) => updateItem(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
+                            value={item.valor_unitario.toFixed(2).replace('.', ',')}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(',', '.');
+                              updateItem(index, 'valor_unitario', parseFloat(value) || 0);
+                            }}
+                            className="no-spinner"
                           />
                         </div>
                       </div>

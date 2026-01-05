@@ -3,9 +3,11 @@ import { Plus, Trash2, Loader2, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientes, useCreateCliente } from '@/hooks/useClientes';
 import { useProdutos } from '@/hooks/useProdutos';
-import { useCreatePedido, useUpdatePedido, usePedido } from '@/hooks/usePedidos';
+import { useCreatePedido, useUpdatePedido, usePedido, usePedidos } from '@/hooks/usePedidos';
 import { Pedido, ItemPedido } from '@/types';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,6 +56,7 @@ export function VendaLojaFormDialog({ open, onOpenChange, pedido, newClienteId }
   const createPedido = useCreatePedido();
   const updatePedido = useUpdatePedido();
   const createCliente = useCreateCliente();
+  const queryClient = useQueryClient();
   
   const [clienteId, setClienteId] = useState('');
   const [emiteNotaFiscal, setEmiteNotaFiscal] = useState(false);
@@ -225,10 +228,10 @@ export function VendaLojaFormDialog({ open, onOpenChange, pedido, newClienteId }
   
   const handleSubmit = async () => {
     if (!clienteId || itens.length === 0) return;
-  
+    
     // Para vendas de loja, usamos a data/hora atual como data de entrega
     const dataHoraEntrega = new Date().toISOString();
-  
+    
     const pedidoData = {
       cliente_id: clienteId,
       setor_id: null,
@@ -239,7 +242,7 @@ export function VendaLojaFormDialog({ open, onOpenChange, pedido, newClienteId }
       emite_nota_fiscal: emiteNotaFiscal,
       created_by: user?.id || '',
     };
-  
+    
     const itensData = itens.map(item => ({
       produto_id: item.produto_id,
       categoria_id: item.categoria_id,
@@ -249,19 +252,51 @@ export function VendaLojaFormDialog({ open, onOpenChange, pedido, newClienteId }
       valor_total: item.quantidade * item.valor_unitario,
       detalhes: item.detalhes || null,
     }));
-  
+    
     if (isEditing && pedido) {
+      // Atualizar o pedido
       await updatePedido.mutateAsync({
         id: pedido.id,
         ...pedidoData,
       });
+      
+      // Atualizar os itens: primeiro deleta todos os itens existentes
+      const { error: deleteError } = await supabase
+        .from('itens_pedido')
+        .delete()
+        .eq('pedido_id', pedido.id);
+      
+      if (deleteError) {
+        console.error('Erro ao deletar itens antigos:', deleteError);
+        throw deleteError;
+      }
+      
+      // Depois insere os novos itens
+      if (itensData.length > 0) {
+        const itensWithPedidoId = itensData.map(item => ({
+          ...item,
+          pedido_id: pedido.id,
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('itens_pedido')
+          .insert(itensWithPedidoId);
+        
+        if (insertError) {
+          console.error('Erro ao inserir novos itens:', insertError);
+          throw insertError;
+        }
+      }
+      
+      // Invalidar o cache dos pedidos para atualizar os itens
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] });
     } else {
       await createPedido.mutateAsync({
         pedido: pedidoData,
         itens: itensData,
       });
     }
-  
+    
     onOpenChange(false);
     resetForm();
   };
@@ -393,23 +428,20 @@ export function VendaLojaFormDialog({ open, onOpenChange, pedido, newClienteId }
                             min="1"
                             value={item.quantidade}
                             onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
+                            className="no-spinner"
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>Valor Unit.</Label>
                           <Input
                             type="text"
-                            step="0.01"
                             min="0"
-                            value={formatCurrency(item.valor_unitario)}
+                            value={item.valor_unitario.toFixed(2).replace('.', ',')}
                             onChange={(e) => {
-                              // Remove caracteres não numéricos exceto vírgula e ponto
-                              const value = e.target.value.replace(/[^\d,.-]/g, '');
-                              // Converte vírgula para ponto e para float
-                              const numValue = parseFloat(value.replace(',', '.')) || 0;
-                              updateItem(index, 'valor_unitario', numValue);
+                              const value = e.target.value.replace(',', '.');
+                              updateItem(index, 'valor_unitario', parseFloat(value) || 0);
                             }}
-                            placeholder="R$ 0,00"
+                            className="no-spinner"
                           />
                         </div>
                       </div>

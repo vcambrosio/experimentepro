@@ -201,4 +201,21 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
   }
+  
+  /* Remove spinner buttons from number inputs */
+  .no-spinner {
+    -moz-appearance: textfield;
+    -webkit-appearance: textfield;
+    appearance: textfield;
+  }
+  
+  .no-spinner::-webkit-outer-spin-button,
+  .no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  .no-spinner::-moz-number-spin-box {
+    display: none;
+  }
 }

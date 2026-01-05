@@ -111,15 +111,12 @@ export default function VendaLoja() {
     }
   }, []);
 
-  // Filtra apenas vendas de loja (pedidos com data de entrega igual à data de criação ou status executado)
+  // Filtra apenas vendas de loja (pedidos com data de entrega igual à data de criação)
   const vendasLoja = pedidos?.filter(pedido => {
     const dataCriacao = new Date(pedido.created_at);
     const dataEntrega = new Date(pedido.data_hora_entrega);
-    // Considera como venda de loja se a data de entrega for próxima da data de criação (mesmo dia)
-    return (
-      dataCriacao.toDateString() === dataEntrega.toDateString() &&
-      pedido.status === 'executado'
-    );
+    // Considera como venda de loja se a data de entrega for igual à data de criação (mesmo dia)
+    return dataCriacao.toDateString() === dataEntrega.toDateString();
   });
 
   const filteredPedidos = vendasLoja?.filter(pedido => {
@@ -453,6 +450,7 @@ export default function VendaLoja() {
         open={viewDialogOpen}
         onOpenChange={setViewDialogOpen}
         pedidoId={selectedPedido?.id}
+        isVendaLoja={true}
       />
 
       {/* Delete Confirmation */}

@@ -33,9 +33,10 @@ interface PedidoViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pedidoId?: string;
+  isVendaLoja?: boolean;
 }
 
-export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDialogProps) {
+export function PedidoViewDialog({ open, onOpenChange, pedidoId, isVendaLoja = false }: PedidoViewDialogProps) {
   const { isAdmin } = useAuth();
   const { data: pedido, isLoading } = usePedido(pedidoId || '');
   const { data: config } = useConfiguracaoEmpresa();
@@ -112,11 +113,13 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle>Detalhes do Pedido de Evento ou Cesta</DialogTitle>
-            {pedido && (
+            <DialogTitle>
+              {isVendaLoja ? 'Detalhes da Venda Loja' : 'Detalhes do Pedido de Evento ou Cesta'}
+            </DialogTitle>
+            {pedido && !isVendaLoja && (
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={handleThermalPrint}
                   title="Impressão térmica direta"
@@ -124,8 +127,8 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
                   <Printer className="h-4 w-4 mr-2" />
                   Imprimir
                 </Button>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
                   onClick={handleDownloadPdf}
                   disabled={generatingPdf}
@@ -148,32 +151,34 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
           </div>
         ) : !pedido ? (
           <div className="text-center py-12 text-muted-foreground">
-            Pedido de Evento ou Cesta não encontrado
+            {isVendaLoja ? 'Venda Loja não encontrada' : 'Pedido de Evento ou Cesta não encontrado'}
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
-              <TabsTrigger value="checklist">Checklist</TabsTrigger>
+              {!isVendaLoja && <TabsTrigger value="checklist">Checklist</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="detalhes" className="space-y-6 mt-4">
               {/* Info Cards */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
-                  <Calendar className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Data de Entrega</p>
-                    <p className="font-medium">
-                      {format(new Date(pedido.data_hora_entrega), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      às {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
-                    </p>
+                {!isVendaLoja && (
+                  <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
+                    <Calendar className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Data de Entrega</p>
+                      <p className="font-medium">
+                        {format(new Date(pedido.data_hora_entrega), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        às {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
+                <div className={`flex items-start gap-3 p-4 bg-muted/50 rounded-lg ${isVendaLoja ? 'col-span-2' : ''}`}>
                   <User className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="text-sm text-muted-foreground">Cliente</p>
@@ -219,7 +224,7 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
               <div>
                 <h3 className="font-medium mb-4 flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  Itens do Pedido de Evento ou Cesta
+                  {isVendaLoja ? 'Itens da Loja' : 'Itens do Pedido de Evento ou Cesta'}
                 </h3>
                 
                 {pedido.itens && pedido.itens.length > 0 ? (
@@ -283,7 +288,9 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
                   <Separator />
                   <div className="flex justify-end">
                     <div className="text-right p-4 bg-primary/10 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Total do Pedido de Evento ou Cesta</p>
+                      <p className="text-sm text-muted-foreground">
+                        {isVendaLoja ? 'Total do Pedido Venda Loja' : 'Total do Pedido de Evento ou Cesta'}
+                      </p>
                       <p className="text-2xl font-semibold text-primary">
                         {formatCurrency(pedido.valor_total)}
                       </p>
