@@ -153,6 +153,7 @@ export interface CategoriaFinanceira {
   descricao?: string;
   ativo: boolean;
   cor: string;
+  exclusao_bloqueada?: boolean;
   created_at: string;
   updated_at: string;
 }

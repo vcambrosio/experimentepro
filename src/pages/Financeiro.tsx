@@ -90,7 +90,6 @@ import type { LancamentoFinanceiro, TipoFinanceiro, StatusLancamento } from '@/t
 import { toast } from 'sonner';
 
 type ViewPeriod = 'week' | 'month' | 'year';
-type VendaLojaPeriod = 'all' | 'year' | 'month';
 
 const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
@@ -106,7 +105,6 @@ export default function Financeiro() {
   
   // Filtros
   const [viewPeriod, setViewPeriod] = useState<ViewPeriod>('month');
-  const [vendaLojaPeriod, setVendaLojaPeriod] = useState<VendaLojaPeriod>('all');
   const [filtroTipo, setFiltroTipo] = useState<TipoFinanceiro | 'todos'>('todos');
   const [filtroStatus, setFiltroStatus] = useState<StatusLancamento | 'todos'>('todos');
   const [dataInicio, setDataInicio] = useState('');
@@ -221,8 +219,9 @@ export default function Financeiro() {
   const vendasLoja = useMemo(() =>
     pedidos?.filter(pedido => {
       const dataCriacao = new Date(pedido.created_at);
-      const dataEntrega = new Date(pedido.data_hora_entrega);
+      const dataEntrega = pedido.data_hora_entrega ? new Date(pedido.data_hora_entrega) : null;
       return (
+        dataEntrega !== null &&
         dataCriacao.toDateString() === dataEntrega.toDateString() &&
         pedido.status === 'executado'
       );
@@ -230,28 +229,7 @@ export default function Financeiro() {
     [pedidos]
   );
 
-  // Filter vendas loja by period
-  const vendasLojaByPeriod = useMemo(() => {
-    const now = new Date();
-    return vendasLoja.filter(pedido => {
-      const dataCriacao = new Date(pedido.created_at);
-      
-      if (vendaLojaPeriod === 'all') {
-        return true;
-      } else if (vendaLojaPeriod === 'year') {
-        const yearStart = startOfYear(now);
-        const yearEnd = endOfYear(now);
-        return isWithinInterval(dataCriacao, { start: yearStart, end: yearEnd });
-      } else if (vendaLojaPeriod === 'month') {
-        const monthStart = startOfMonth(now);
-        const monthEnd = endOfMonth(now);
-        return isWithinInterval(dataCriacao, { start: monthStart, end: monthEnd });
-      }
-      return true;
-    });
-  }, [vendasLoja, vendaLojaPeriod]);
-
-  const vendasLojaPendentes = vendasLojaByPeriod.filter(p => p.status_pagamento === 'pendente');
+  const vendasLojaPendentes = vendasLoja.filter(p => p.status_pagamento === 'pendente');
   const totalPendenteVendaLoja = vendasLojaPendentes.reduce((acc, p) => acc + (p.valor_total || 0), 0);
 
   // Generate chart data based on period
@@ -454,20 +432,6 @@ export default function Financeiro() {
           <CardContent>
             <div className="text-2xl font-bold text-info">{formatCurrency(totalPendenteVendaLoja)}</div>
             <p className="text-xs text-muted-foreground mt-1">{vendasLojaPendentes.length} vendas de loja pendentes</p>
-            <Select
-              value={vendaLojaPeriod}
-              onValueChange={(v: VendaLojaPeriod) => setVendaLojaPeriod(v)}
-              className="mt-2"
-            >
-              <SelectTrigger className="h-7 text-xs w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todo o tempo</SelectItem>
-                <SelectItem value="year">Último ano</SelectItem>
-                <SelectItem value="month">Último mês</SelectItem>
-              </SelectContent>
-            </Select>
           </CardContent>
         </Card>
       </div>

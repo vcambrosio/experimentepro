@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Filter, FileText, ArrowRight, CheckCircle, XCircle, Clock, X } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Filter, FileText, ArrowRight, CheckCircle, XCircle, Clock, X, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
 import { useOrcamentos, useDeleteOrcamento, useUpdateOrcamento, useConvertOrcamentoToPedido } from '@/hooks/useOrcamentos';
 import { useAuth } from '@/contexts/AuthContext';
 import { Orcamento, StatusOrcamento } from '@/types';
@@ -68,6 +68,9 @@ const getStatusBadgeClass = (status: StatusOrcamento) => {
   }
 };
 
+type SortColumn = 'numero' | 'cliente' | 'data' | 'entrega' | 'status' | 'valor';
+type SortDirection = 'asc' | 'desc';
+
 export default function Orcamentos() {
   const { isAdmin } = useAuth();
   const { data: orcamentos, isLoading, error } = useOrcamentos();
@@ -77,6 +80,8 @@ export default function Orcamentos() {
   
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('data');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -95,13 +100,68 @@ export default function Orcamentos() {
     }
   }, []);
 
-  const filteredOrcamentos = orcamentos?.filter(orcamento => {
-    const matchesSearch = 
-      orcamento.cliente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
-      orcamento.numero_orcamento?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || orcamento.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredAndSortedOrcamentos = useMemo(() => {
+    if (!orcamentos) return [];
+
+    // Primeiro aplica os filtros
+    let filtered = orcamentos.filter(orcamento => {
+      const matchesSearch =
+        orcamento.cliente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
+        orcamento.numero_orcamento?.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || orcamento.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    // Depois aplica a ordenação
+    return filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortColumn) {
+        case 'numero':
+          comparison = (a.numero_orcamento || '').localeCompare(b.numero_orcamento || '');
+          break;
+        case 'cliente':
+          const clienteA = a.cliente?.nome || '';
+          const clienteB = b.cliente?.nome || '';
+          comparison = clienteA.localeCompare(clienteB);
+          break;
+        case 'data':
+          comparison = new Date(a.data_orcamento).getTime() - new Date(b.data_orcamento).getTime();
+          break;
+        case 'entrega':
+          const entregaA = a.data_entrega ? new Date(a.data_entrega).getTime() : 0;
+          const entregaB = b.data_entrega ? new Date(b.data_entrega).getTime() : 0;
+          comparison = entregaA - entregaB;
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'valor':
+          comparison = a.valor_total - b.valor_total;
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [orcamentos, search, statusFilter, sortColumn, sortDirection]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="ml-2 h-4 w-4" />
+      : <ArrowDown className="ml-2 h-4 w-4" />;
+  };
 
   const handleCreate = () => {
     setSelectedOrcamento(null);
@@ -214,7 +274,7 @@ export default function Orcamentos() {
         <div className="flex items-center justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : filteredOrcamentos?.length === 0 ? (
+      ) : filteredAndSortedOrcamentos?.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 border-2 border-dashed rounded-lg">
           <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
           <p className="text-muted-foreground">Nenhum orçamento encontrado</p>
@@ -227,17 +287,67 @@ export default function Orcamentos() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Número</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Entrega</TableHead>
-                <TableHead>Status</TableHead>
-                {isAdmin && <TableHead className="text-right">Valor</TableHead>}
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('numero')}
+                >
+                  <div className="flex items-center">
+                    Número
+                    {getSortIcon('numero')}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('cliente')}
+                >
+                  <div className="flex items-center">
+                    Cliente
+                    {getSortIcon('cliente')}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('data')}
+                >
+                  <div className="flex items-center">
+                    Data
+                    {getSortIcon('data')}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('entrega')}
+                >
+                  <div className="flex items-center">
+                    Entrega
+                    {getSortIcon('entrega')}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center">
+                    Status
+                    {getSortIcon('status')}
+                  </div>
+                </TableHead>
+                {isAdmin && (
+                  <TableHead
+                    className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('valor')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Valor
+                      {getSortIcon('valor')}
+                    </div>
+                  </TableHead>
+                )}
                 <TableHead className="w-[140px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOrcamentos?.map((orcamento) => (
+              {filteredAndSortedOrcamentos?.map((orcamento) => (
                 <TableRow key={orcamento.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">

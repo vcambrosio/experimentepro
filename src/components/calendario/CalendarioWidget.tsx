@@ -28,7 +28,10 @@ import {
   Pencil,
   Loader2,
   GripVertical,
-  Move
+  Move,
+  ShoppingBasket,
+  Coffee,
+  Package
 } from 'lucide-react';
 import {
   DndContext,
@@ -87,6 +90,44 @@ const statusLabels: Record<StatusPedido, string> = {
   executado: 'Executado',
   cancelado: 'Cancelado',
 };
+
+// Função para obter cor e ícone baseado na categoria
+const getCategoriaInfo = (pedido: Pedido) => {
+  if (!pedido.itens || pedido.itens.length === 0) {
+    return {
+      color: 'bg-gray-100 border-gray-300',
+      icon: Package,
+      label: 'Sem categoria'
+    };
+  }
+  
+  const categoriaNome = pedido.itens[0].categoria?.nome?.toLowerCase() || '';
+  
+  // Cestas - Rosa
+  if (categoriaNome.includes('cesta') || categoriaNome.includes('basket')) {
+    return {
+      color: 'bg-pink-100 border-pink-300 text-pink-700',
+      icon: ShoppingBasket,
+      label: 'Cestas'
+    };
+  }
+  
+  // Coffee break - Azul
+  if (categoriaNome.includes('coffee') || categoriaNome.includes('café') || categoriaNome.includes('cafe')) {
+    return {
+      color: 'bg-blue-100 border-blue-300 text-blue-700',
+      icon: Coffee,
+      label: 'Coffee Break'
+    };
+  }
+  
+  // Outros - Cinza
+  return {
+    color: 'bg-gray-100 border-gray-300 text-gray-700',
+    icon: Package,
+    label: 'Outros'
+  };
+};
  
 // Draggable Pedido Component
 function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewMode }) {
@@ -99,6 +140,9 @@ function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewM
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     opacity: isDragging ? 0.5 : 1,
   };
+  
+  const categoriaInfo = getCategoriaInfo(pedido);
+  const CategoriaIcon = categoriaInfo.icon;
  
   return (
     <div
@@ -106,14 +150,15 @@ function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewM
       style={style}
       className={cn(
         "text-[10px] px-1 py-0.5 rounded truncate border-l-2 cursor-grab active:cursor-grabbing flex items-center gap-0.5",
-        statusColors[pedido.status]
+        categoriaInfo.color
       )}
       {...listeners}
       {...attributes}
     >
       <GripVertical className="h-2 w-2 shrink-0 opacity-50" />
+      <CategoriaIcon className="h-2.5 w-2.5 shrink-0" />
       <span className="hidden sm:inline truncate">
-        {format(new Date(pedido.data_hora_entrega), 'HH:mm')} - {pedido.cliente?.nome ? pedido.cliente.nome.split(' ')[0] : ''}
+        {format(new Date(pedido.data_hora_entrega), 'HH:mm')} - {pedido.cliente?.nome ? pedido.cliente.nome.split(' ')[0] : ''}{pedido.setor ? ` - ${pedido.setor.nome_setor}` : ''}
       </span>
       <span className="sm:hidden">
         {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
@@ -575,39 +620,47 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
             <div className="space-y-3 pr-4">
               {selectedDatePedidos
                 .sort((a, b) => new Date(a.data_hora_entrega).getTime() - new Date(b.data_hora_entrega).getTime())
-                .map((pedido) => (
-                  <div
-                    key={pedido.id}
-                    className={cn(
-                      "p-4 rounded-lg border-l-4 cursor-pointer hover:bg-accent/50 transition-colors",
-                      statusColors[pedido.status],
-                      "bg-card"
-                    )}
-                    onClick={() => handleEditPedido(pedido)}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
-                            {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            {statusLabels[pedido.status]}
-                          </Badge>
+                .map((pedido) => {
+                  const categoriaInfo = getCategoriaInfo(pedido);
+                  const CategoriaIcon = categoriaInfo.icon;
+                  
+                  return (
+                    <div
+                      key={pedido.id}
+                      className={cn(
+                        "p-4 rounded-lg border-l-4 cursor-pointer hover:bg-accent/50 transition-colors",
+                        statusColors[pedido.status],
+                        "bg-card"
+                      )}
+                      onClick={() => handleEditPedido(pedido)}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">
+                              {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {statusLabels[pedido.status]}
+                            </Badge>
+                            <Badge variant="outline" className={cn("text-xs", categoriaInfo.color)}>
+                              <CategoriaIcon className="h-3 w-3 mr-1" />
+                              {categoriaInfo.label}
+                            </Badge>
+                          </div>
+                         
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span>{pedido.cliente?.nome || ''}</span>
+                          </div>
+                         
+                          {pedido.setor && (
+                            <p className="text-xs text-muted-foreground ml-6">
+                              {pedido.setor.nome_setor}
+                            </p>
+                          )}
                         </div>
-                       
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{pedido.cliente?.nome || ''}</span>
-                        </div>
-                       
-                        {pedido.setor && (
-                          <p className="text-xs text-muted-foreground ml-6">
-                            {pedido.setor.nome_setor}
-                          </p>
-                        )}
-                      </div>
                       
                       <div className="flex flex-col items-end gap-2">
                         {isAdmin && (
@@ -615,12 +668,12 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                             <p className="font-semibold text-primary">
                               {formatCurrency(pedido.valor_total)}
                             </p>
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className={cn(
                                 "text-xs",
-                                pedido.status_pagamento === 'pago' 
-                                  ? 'bg-success/20 text-success-foreground' 
+                                pedido.status_pagamento === 'pago'
+                                  ? 'bg-success/20 text-success-foreground'
                                   : 'bg-warning/20 text-warning-foreground'
                               )}
                             >
@@ -634,7 +687,8 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })}
             </div>
           </ScrollArea>
         </DialogContent>

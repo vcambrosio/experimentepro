@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Package } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
 import { useProdutos, useDeleteProduto } from '@/hooks/useProdutos';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
+type SortColumn = 'nome' | 'categoria' | 'valor' | 'status';
+type SortDirection = 'asc' | 'desc';
+
 export default function Produtos() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
@@ -35,11 +38,62 @@ export default function Produtos() {
   
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>('nome');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
-  const filteredProdutos = produtos?.filter(produto =>
-    produto.nome.toLowerCase().includes(search.toLowerCase()) ||
-    produto.categoria?.nome.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredAndSortedProdutos = useMemo(() => {
+    if (!produtos) return [];
+
+    // Primeiro aplica o filtro de busca
+    let filtered = produtos.filter(produto =>
+      produto.nome.toLowerCase().includes(search.toLowerCase()) ||
+      produto.categoria?.nome.toLowerCase().includes(search.toLowerCase())
+    );
+
+    // Depois aplica a ordenação
+    return filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortColumn) {
+        case 'nome':
+          comparison = a.nome.localeCompare(b.nome);
+          break;
+        case 'categoria':
+          const catA = a.categoria?.nome || '';
+          const catB = b.categoria?.nome || '';
+          comparison = catA.localeCompare(catB);
+          break;
+        case 'valor':
+          comparison = a.valor_venda - b.valor_venda;
+          break;
+        case 'status':
+          comparison = (a.ativo === b.ativo) ? 0 : a.ativo ? -1 : 1;
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [produtos, search, sortColumn, sortDirection]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      // Se clicar na mesma coluna, inverte a direção
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Se clicar em nova coluna, define como ascendente
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="ml-2 h-4 w-4" />
+      : <ArrowDown className="ml-2 h-4 w-4" />;
+  };
 
   const handleDelete = async () => {
     if (deleteId) {
@@ -93,15 +147,49 @@ export default function Produtos() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produto</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  {isAdmin && <TableHead>Valor</TableHead>}
-                  <TableHead>Status</TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('nome')}
+                  >
+                    <div className="flex items-center">
+                      Produto
+                      {getSortIcon('nome')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('categoria')}
+                  >
+                    <div className="flex items-center">
+                      Categoria
+                      {getSortIcon('categoria')}
+                    </div>
+                  </TableHead>
+                  {isAdmin && (
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort('valor')}
+                    >
+                      <div className="flex items-center">
+                        Valor
+                        {getSortIcon('valor')}
+                      </div>
+                    </TableHead>
+                  )}
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center">
+                      Status
+                      {getSortIcon('status')}
+                    </div>
+                  </TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredProdutos?.map((produto) => (
+                {filteredAndSortedProdutos?.map((produto) => (
                   <TableRow key={produto.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -153,7 +241,7 @@ export default function Produtos() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredProdutos?.length === 0 && (
+                {filteredAndSortedProdutos?.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={isAdmin ? 5 : 4} className="text-center py-8 text-muted-foreground">
                       Nenhum produto encontrado

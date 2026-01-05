@@ -158,6 +158,13 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
       setClienteId(newClienteId);
     }
   }, [newClienteId]);
+
+  // Seleciona automaticamente o setor quando o cliente tiver apenas um setor
+  useEffect(() => {
+    if (setores && setores.length === 1 && !isEditing) {
+      setSetorId(setores[0].id);
+    }
+  }, [setores, isEditing]);
   
   const handleCreateNovoCliente = async () => {
     if (!novoClienteNome.trim()) {
@@ -485,11 +492,21 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                             <SelectValue placeholder="Selecione o produto" />
                           </SelectTrigger>
                           <SelectContent>
-                            {produtos?.filter(p => p.ativo).map((produto) => (
-                              <SelectItem key={produto.id} value={produto.id}>
-                                {produto.nome} - {formatCurrency(produto.valor_venda)}
-                              </SelectItem>
-                            ))}
+                            {produtos
+                              ?.filter(p => p.ativo)
+                              .filter(p => {
+                                const categoriaNome = p.categoria?.nome?.toLowerCase() || '';
+                                return categoriaNome.includes('cesta') ||
+                                       categoriaNome.includes('basket') ||
+                                       categoriaNome.includes('coffee') ||
+                                       categoriaNome.includes('café') ||
+                                       categoriaNome.includes('cafe');
+                              })
+                              .map((produto) => (
+                                <SelectItem key={produto.id} value={produto.id}>
+                                  {produto.nome} - {formatCurrency(produto.valor_venda)}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       </div>

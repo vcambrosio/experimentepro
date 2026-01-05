@@ -61,8 +61,16 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Visão geral do seu negócio</p>
       </div>
 
-      {/* Calendário */}
-      <CalendarioWidget pedidos={pedidos || []} isLoading={isLoading} />
+      {/* Calendário - Apenas pedidos de Evento ou Cesta (exclui vendas de loja) */}
+      <CalendarioWidget
+        pedidos={pedidos?.filter(pedido => {
+          const dataCriacao = new Date(pedido.created_at);
+          const dataEntrega = new Date(pedido.data_hora_entrega);
+          // Exclui vendas de loja (onde data de entrega é igual à data de criação)
+          return dataCriacao.toDateString() !== dataEntrega.toDateString();
+        }) || []}
+        isLoading={isLoading}
+      />
 
       {/* Cards principais */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

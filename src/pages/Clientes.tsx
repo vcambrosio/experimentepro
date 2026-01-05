@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, User, Building2, Phone, Mail } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Building2, Phone, Mail, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
 import { useClientes, useDeleteCliente } from '@/hooks/useClientes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Cliente } from '@/types';
 
+type SortColumn = 'nome' | 'tipo' | 'contato' | 'status';
+type SortDirection = 'asc' | 'desc';
+
 export default function Clientes() {
   const navigate = useNavigate();
   const { data: clientes, isLoading } = useClientes();
@@ -34,13 +37,62 @@ export default function Clientes() {
   
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>('nome');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
-  const filteredClientes = clientes?.filter(cliente =>
-    cliente.nome.toLowerCase().includes(search.toLowerCase()) ||
-    cliente.contato?.toLowerCase().includes(search.toLowerCase()) ||
-    cliente.email?.toLowerCase().includes(search.toLowerCase()) ||
-    cliente.telefone?.includes(search)
-  );
+  const filteredAndSortedClientes = useMemo(() => {
+    if (!clientes) return [];
+
+    // Primeiro aplica o filtro de busca
+    let filtered = clientes.filter(cliente =>
+      cliente.nome.toLowerCase().includes(search.toLowerCase()) ||
+      cliente.contato?.toLowerCase().includes(search.toLowerCase()) ||
+      cliente.email?.toLowerCase().includes(search.toLowerCase()) ||
+      cliente.telefone?.includes(search)
+    );
+
+    // Depois aplica a ordenação
+    return filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortColumn) {
+        case 'nome':
+          comparison = a.nome.localeCompare(b.nome);
+          break;
+        case 'tipo':
+          comparison = a.tipo_pessoa.localeCompare(b.tipo_pessoa);
+          break;
+        case 'contato':
+          const contatoA = a.contato || a.email || a.telefone || '';
+          const contatoB = b.contato || b.email || b.telefone || '';
+          comparison = contatoA.localeCompare(contatoB);
+          break;
+        case 'status':
+          comparison = (a.ativo === b.ativo) ? 0 : a.ativo ? -1 : 1;
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [clientes, search, sortColumn, sortDirection]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="ml-2 h-4 w-4" />
+      : <ArrowDown className="ml-2 h-4 w-4" />;
+  };
 
   const handleDelete = async () => {
     if (deleteId) {
@@ -87,15 +139,47 @@ export default function Clientes() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Contato</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('nome')}
+                  >
+                    <div className="flex items-center">
+                      Nome
+                      {getSortIcon('nome')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('tipo')}
+                  >
+                    <div className="flex items-center">
+                      Tipo
+                      {getSortIcon('tipo')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('contato')}
+                  >
+                    <div className="flex items-center">
+                      Contato
+                      {getSortIcon('contato')}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center">
+                      Status
+                      {getSortIcon('status')}
+                    </div>
+                  </TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClientes?.map((cliente) => (
+                {filteredAndSortedClientes?.map((cliente) => (
                   <TableRow key={cliente.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -169,7 +253,7 @@ export default function Clientes() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredClientes?.length === 0 && (
+                {filteredAndSortedClientes?.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       Nenhum cliente encontrado

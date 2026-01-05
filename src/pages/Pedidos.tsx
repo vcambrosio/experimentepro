@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Calendar, Filter, CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Calendar, Filter, CheckCircle, XCircle, Clock, DollarSign, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
 import { usePedidos, useDeletePedido, useUpdatePedido } from '@/hooks/usePedidos';
 import { useCreateLancamento } from '@/hooks/useFinanceiro';
 import { useAuth } from '@/contexts/AuthContext';
@@ -80,6 +80,9 @@ const getPagamentoBadgeClass = (status: StatusPagamento) => {
   }
 };
 
+type SortColumn = 'data' | 'cliente' | 'setor' | 'status' | 'pagamento' | 'valor';
+type SortDirection = 'asc' | 'desc';
+
 export default function Pedidos() {
   const { isAdmin } = useAuth();
   const { data: pedidos, isLoading, error } = usePedidos();
@@ -90,6 +93,8 @@ export default function Pedidos() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [pagamentoFilter, setPagamentoFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('data');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -119,14 +124,69 @@ export default function Pedidos() {
     return dataCriacao.toDateString() !== dataEntrega.toDateString();
   });
 
-  const filteredPedidos = pedidosEventoCesta?.filter(pedido => {
-    const matchesSearch =
-      pedido.cliente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
-      pedido.id.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || pedido.status === statusFilter;
-    const matchesPagamento = pagamentoFilter === 'all' || pedido.status_pagamento === pagamentoFilter;
-    return matchesSearch && matchesStatus && matchesPagamento;
-  });
+  const filteredAndSortedPedidos = useMemo(() => {
+    if (!pedidosEventoCesta) return [];
+
+    // Primeiro aplica os filtros
+    let filtered = pedidosEventoCesta.filter(pedido => {
+      const matchesSearch =
+        pedido.cliente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
+        pedido.id.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || pedido.status === statusFilter;
+      const matchesPagamento = pagamentoFilter === 'all' || pedido.status_pagamento === pagamentoFilter;
+      return matchesSearch && matchesStatus && matchesPagamento;
+    });
+
+    // Depois aplica a ordenação
+    return filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortColumn) {
+        case 'data':
+          comparison = new Date(a.data_hora_entrega).getTime() - new Date(b.data_hora_entrega).getTime();
+          break;
+        case 'cliente':
+          const clienteA = a.cliente?.nome || '';
+          const clienteB = b.cliente?.nome || '';
+          comparison = clienteA.localeCompare(clienteB);
+          break;
+        case 'setor':
+          const setorA = a.setor?.nome_setor || '';
+          const setorB = b.setor?.nome_setor || '';
+          comparison = setorA.localeCompare(setorB);
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'pagamento':
+          comparison = a.status_pagamento.localeCompare(b.status_pagamento);
+          break;
+        case 'valor':
+          comparison = a.valor_total - b.valor_total;
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [pedidosEventoCesta, search, statusFilter, pagamentoFilter, sortColumn, sortDirection]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="ml-2 h-4 w-4" />
+      : <ArrowDown className="ml-2 h-4 w-4" />;
+  };
 
   const handleCreate = () => {
     setSelectedPedido(null);
@@ -273,7 +333,7 @@ export default function Pedidos() {
         <div className="flex items-center justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : filteredPedidos?.length === 0 ? (
+      ) : filteredAndSortedPedidos?.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 border-2 border-dashed rounded-lg">
           <Calendar className="h-12 w-12 text-muted-foreground/50 mb-4" />
           <p className="text-muted-foreground">Nenhum pedido de evento ou cesta encontrado</p>
@@ -286,19 +346,69 @@ export default function Pedidos() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data Entrega</TableHead>
-                <TableHead>Cliente</TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('data')}
+                >
+                  <div className="flex items-center">
+                    Data Entrega
+                    {getSortIcon('data')}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('cliente')}
+                >
+                  <div className="flex items-center">
+                    Cliente
+                    {getSortIcon('cliente')}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('setor')}
+                >
+                  <div className="flex items-center">
+                    Setor
+                    {getSortIcon('setor')}
+                  </div>
+                </TableHead>
                 <TableHead>Produtos</TableHead>
-                <TableHead>Setor</TableHead>
                 <TableHead>Nota Fiscal</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Pagamento</TableHead>
-                {isAdmin && <TableHead className="text-right">Valor</TableHead>}
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center">
+                    Status
+                    {getSortIcon('status')}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort('pagamento')}
+                >
+                  <div className="flex items-center">
+                    Pagamento
+                    {getSortIcon('pagamento')}
+                  </div>
+                </TableHead>
+                {isAdmin && (
+                  <TableHead
+                    className="text-right cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSort('valor')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Valor
+                      {getSortIcon('valor')}
+                    </div>
+                  </TableHead>
+                )}
                 <TableHead className="w-[100px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPedidos?.map((pedido) => (
+              {filteredAndSortedPedidos?.map((pedido) => (
                 <TableRow key={pedido.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -318,11 +428,26 @@ export default function Pedidos() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
+                      <span className="font-medium">{pedido.setor?.nome_setor || '-'}</span>
+                      {pedido.setor?.responsavel && (
+                        <span className="text-xs text-muted-foreground">
+                          Resp: {pedido.setor.responsavel}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
                       {pedido.itens && pedido.itens.length > 0 ? (
-                        pedido.itens.slice(0, 3).map((item, index) => (
-                          <span key={index} className="text-sm">
-                            {item.produto?.nome || 'Produto não encontrado'}
-                          </span>
+                        pedido.itens.map((item, index) => (
+                          <div key={index} className="text-sm">
+                            <div className="font-medium">
+                              {item.produto?.nome || 'Produto não encontrado'}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Qtd: {item.quantidade} | Valor: {formatCurrency(item.valor_unitario)}
+                            </div>
+                          </div>
                         ))
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
@@ -330,16 +455,6 @@ export default function Pedidos() {
                       {pedido.itens && pedido.itens.length > 3 && (
                         <span className="text-xs text-muted-foreground">
                           +{pedido.itens.length - 3} produtos
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{pedido.setor?.nome_setor || '-'}</span>
-                      {pedido.setor?.responsavel && (
-                        <span className="text-xs text-muted-foreground">
-                          Resp: {pedido.setor.responsavel}
                         </span>
                       )}
                     </div>

@@ -271,16 +271,20 @@ export function useResumoFinanceiro(dataInicio?: string, dataFim?: string) {
 }
 
 // Hook para buscar fluxo de caixa
-export function useFluxoCaixa(dataInicio: string, dataFim: string) {
+export function useFluxoCaixa(dataInicio?: string, dataFim?: string) {
   return useQuery({
     queryKey: ['fluxo_caixa', dataInicio, dataFim],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('lancamentos_financeiros')
         .select('*')
-        .gte('data_lancamento', dataInicio)
-        .lte('data_lancamento', dataFim)
         .order('data_lancamento', { ascending: true });
+
+      if (dataInicio && dataFim) {
+        query = query.gte('data_lancamento', dataInicio).lte('data_lancamento', dataFim);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -327,18 +331,23 @@ export function useFluxoCaixa(dataInicio: string, dataFim: string) {
 }
 
 // Hook para buscar balanço
-export function useBalanco(dataInicio: string, dataFim: string) {
+export function useBalanco(dataInicio?: string, dataFim?: string) {
   return useQuery({
     queryKey: ['balanco', dataInicio, dataFim],
     queryFn: async () => {
-      const { data: lancamentos, error } = await supabase
+      let query = supabase
         .from('lancamentos_financeiros')
         .select(`
           *,
           categoria:categorias_financeiras(*)
         `)
-        .gte('data_lancamento', dataInicio)
-        .lte('data_lancamento', dataFim);
+        .order('data_lancamento', { ascending: false });
+
+      if (dataInicio && dataFim) {
+        query = query.gte('data_lancamento', dataInicio).lte('data_lancamento', dataFim);
+      }
+
+      const { data: lancamentos, error } = await query;
 
       if (error) throw error;
 
@@ -365,7 +374,7 @@ export function useBalanco(dataInicio: string, dataFim: string) {
       });
 
       const balanco: Balanco = {
-        periodo: `${dataInicio} a ${dataFim}`,
+        periodo: dataInicio && dataFim ? `${dataInicio} a ${dataFim}` : 'Todo o período',
         totalReceitas,
         totalDespesas,
         lucro: totalReceitas - totalDespesas,

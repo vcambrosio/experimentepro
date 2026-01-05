@@ -411,11 +411,21 @@ export function VendaLojaFormDialog({ open, onOpenChange, pedido, newClienteId }
                             <SelectValue placeholder="Selecione o produto" />
                           </SelectTrigger>
                           <SelectContent>
-                            {produtos?.filter(p => p.ativo).map((produto) => (
-                              <SelectItem key={produto.id} value={produto.id}>
-                                {produto.nome} - {formatCurrency(produto.valor_venda)}
-                              </SelectItem>
-                            ))}
+                            {produtos
+                              ?.filter(p => p.ativo)
+                              .filter(p => {
+                                const categoriaNome = p.categoria?.nome?.toLowerCase() || '';
+                                return !categoriaNome.includes('cesta') &&
+                                       !categoriaNome.includes('basket') &&
+                                       !categoriaNome.includes('coffee') &&
+                                       !categoriaNome.includes('café') &&
+                                       !categoriaNome.includes('cafe');
+                              })
+                              .map((produto) => (
+                                <SelectItem key={produto.id} value={produto.id}>
+                                  {produto.nome} - {formatCurrency(produto.valor_venda)}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       </div>
