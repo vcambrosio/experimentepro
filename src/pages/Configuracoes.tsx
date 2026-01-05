@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
 import {
   Settings,
   Building2,
@@ -25,15 +26,27 @@ import {
   Key,
   Edit,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  DollarSign,
+  Plus,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Palette,
+  FileSpreadsheet,
+  Download,
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
 import { useConfiguracaoEmpresa, useUpdateConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
 import { useUsers, useUpdateUserRole, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCategoriasFinanceiras, useCreateCategoriaFinanceira, useUpdateCategoriaFinanceira, useDeleteCategoriaFinanceira, useCreateLancamento } from '@/hooks/useFinanceiro';
 import { supabase } from '@/lib/supabase';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,6 +55,13 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -101,18 +121,43 @@ export default function Configuracoes() {
   const { user, profile, role, isAdmin, signOut } = useAuth();
   const { data: config, isLoading } = useConfiguracaoEmpresa();
   const { data: users, isLoading: loadingUsers } = useUsers();
+  const { data: categoriasFinanceiras, isLoading: loadingCategorias } = useCategoriasFinanceiras();
   const updateConfig = useUpdateConfiguracaoEmpresa();
   const updateUserRole = useUpdateUserRole();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const createCategoria = useCreateCategoriaFinanceira();
+  const updateCategoria = useUpdateCategoriaFinanceira();
+  const deleteCategoria = useDeleteCategoriaFinanceira();
+  const createLancamento = useCreateLancamento();
+  const queryClient = useQueryClient();
+  const { mutate: deleteAllLancamentos, isPending: deletingAllLancamentos } = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('lancamentos_financeiros')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lancamentos_financeiros'] });
+      queryClient.invalidateQueries({ queryKey: ['resumo_financeiro'] });
+      toast.success('Todos os lançamentos foram excluídos com sucesso!');
+    },
+    onError: (error) => {
+      console.error('Erro ao excluir lançamentos:', error);
+      toast.error('Erro ao excluir lançamentos. Tente novamente.');
+    }
+  });
   
   const [activeTab, setActiveTab] = useState('empresa');
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     userId: string;
     userName: string;
-    action: 'promote' | 'demote' | 'delete' | 'delete_logo';
+    action: 'promote' | 'demote' | 'delete' | 'delete_logo' | 'delete_categoria' | 'delete_all_lancamentos';
     logoType?: UploadType;
   }>({ open: false, userId: '', userName: '', action: 'promote' });
   const [editDialog, setEditDialog] = useState<{
@@ -127,6 +172,17 @@ export default function Configuracoes() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [userDialog, setUserDialog] = useState<{ open: boolean }>({ open: false });
+  const [categoriaDialog, setCategoriaDialog] = useState<{
+    open: boolean;
+    categoria?: any;
+  }>({ open: false });
+  
+  const [importDialog, setImportDialog] = useState<{
+    open: boolean;
+    file: File | null;
+    preview: any[];
+    newCategorias: string[];
+  }>({ open: false, file: null, preview: [], newCategorias: [] });
   
   const form = useForm<EmpresaFormData>({
     resolver: zodResolver(empresaSchema),
@@ -305,11 +361,205 @@ export default function Configuracoes() {
     setEditDialog({ open: false, userId: '', fullName: '' });
   };
 
+  const handleCreateCategoria = async (categoria: any) => {
+    await createCategoria.mutateAsync(categoria);
+    setCategoriaDialog({ open: false });
+    toast.success('Categoria criada com sucesso!');
+  };
+
+  const handleUpdateCategoria = async (categoria: any) => {
+    await updateCategoria.mutateAsync({ id: categoriaDialog.categoria.id, ...categoria });
+    setCategoriaDialog({ open: false });
+    toast.success('Categoria atualizada com sucesso!');
+  };
+
+  const handleDeleteCategoria = async () => {
+    await deleteCategoria.mutateAsync(confirmDialog.userId);
+    setConfirmDialog({ open: false, userId: '', userName: '', action: 'promote' });
+    toast.success('Categoria excluída com sucesso!');
+  };
+
   const getInitials = (name?: string, email?: string) => {
     if (name) {
       return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     }
     return email?.slice(0, 2).toUpperCase() || 'U';
+  };
+
+  // Função para baixar modelo de planilha
+  const handleDownloadModelo = () => {
+    const modelo = [
+      {
+        'Data': '2024-01-15',
+        'Tipo': 'receita',
+        'Categoria': 'Vendas',
+        'Descrição': 'Venda de produtos',
+        'Valor': 1500.00,
+        'Status': 'realizado',
+        'Forma de Pagamento': 'Pix',
+        'Observações': 'Cliente João Silva'
+      },
+      {
+        'Data': '2024-01-16',
+        'Tipo': 'despesa',
+        'Categoria': 'Aluguel',
+        'Descrição': 'Aluguel do escritório',
+        'Valor': 2000.00,
+        'Status': 'pendente',
+        'Forma de Pagamento': 'Transferência',
+        'Observações': 'Vencimento dia 30'
+      },
+      {
+        'Data': '2024-01-17',
+        'Tipo': 'despesa',
+        'Categoria': 'Material de Escritório',
+        'Descrição': 'Compra de materiais',
+        'Valor': 350.50,
+        'Status': 'realizado',
+        'Forma de Pagamento': 'Cartão de Crédito',
+        'Observações': 'Papel, canetas, etc.'
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(modelo);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
+    XLSX.writeFile(wb, 'modelo_lancamentos_financeiros.xlsx');
+  };
+
+  // Função para processar upload do arquivo
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json<any>(sheet);
+
+        // Validar estrutura do arquivo
+        const requiredColumns = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Status'];
+        const firstRow = jsonData[0] || {};
+        const missingColumns = requiredColumns.filter(col => !(col in firstRow));
+
+        if (missingColumns.length > 0) {
+          toast.error(`Colunas obrigatórias faltando: ${missingColumns.join(', ')}`);
+          return;
+        }
+
+        // Processar dados
+        const processedData = jsonData.map((row: any) => ({
+          data: row['Data'],
+          tipo: row['Tipo']?.toLowerCase() === 'receita' ? 'receita' : 'despesa',
+          categoria: row['Categoria'],
+          descricao: row['Descrição'] || '',
+          valor: Number(row['Valor']) || 0,
+          status: row['Status']?.toLowerCase() === 'realizado' ? 'realizado' : 'pendente',
+          forma_pagamento: row['Forma de Pagamento'] || '',
+          observacoes: row['Observações'] || ''
+        }));
+
+        // Identificar novas categorias
+        const existingCategorias = categoriasFinanceiras || [];
+        const newCategorias = processedData
+          .map(row => row.categoria)
+          .filter((cat: string) => cat && !existingCategorias.some(ec => ec.nome.toLowerCase() === cat.toLowerCase()))
+          .filter((cat, idx, arr) => arr.indexOf(cat) === idx);
+
+        setImportDialog({
+          open: true,
+          file,
+          preview: processedData,
+          newCategorias
+        });
+
+        toast.success(`Arquivo carregado com sucesso! ${processedData.length} registros encontrados.`);
+      } catch (error) {
+        console.error('Erro ao processar arquivo:', error);
+        toast.error('Erro ao processar o arquivo. Verifique se é um arquivo Excel válido.');
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  // Função para importar lançamentos
+  const handleImportLancamentos = async () => {
+    if (!importDialog.preview.length) return;
+
+    try {
+      // Criar novas categorias se necessário
+      const existingCategorias = categoriasFinanceiras || [];
+      const categoriaMap = new Map<string, string>();
+
+      for (const catName of importDialog.newCategorias) {
+        const tipo = importDialog.preview.find(row => row.categoria === catName)?.tipo || 'despesa';
+        const cor = tipo === 'receita' ? '#22c55e' : '#ef4444';
+        
+        const newCategoria = await createCategoria.mutateAsync({
+          nome: catName,
+          tipo,
+          descricao: `Categoria criada automaticamente na importação`,
+          cor,
+          ativo: true
+        });
+
+        categoriaMap.set(catName.toLowerCase(), newCategoria.id);
+      }
+
+      // Mapear categorias existentes
+      existingCategorias.forEach(cat => {
+        categoriaMap.set(cat.nome.toLowerCase(), cat.id);
+      });
+
+      // Importar lançamentos
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const row of importDialog.preview) {
+        try {
+          const categoriaId = categoriaMap.get(row.categoria.toLowerCase());
+          if (!categoriaId) {
+            console.error(`Categoria não encontrada: ${row.categoria}`);
+            errorCount++;
+            continue;
+          }
+
+          await createLancamento.mutateAsync({
+            tipo: row.tipo,
+            categoria_id: categoriaId,
+            descricao: row.descricao,
+            valor: row.valor,
+            data_lancamento: row.data,
+            status: row.status,
+            forma_pagamento: row.forma_pagamento,
+            observacoes: row.observacoes,
+            recorrente: false
+          });
+
+          successCount++;
+        } catch (error) {
+          console.error('Erro ao importar lançamento:', error);
+          errorCount++;
+        }
+      }
+
+      // Limpar e mostrar resultado
+      setImportDialog({ open: false, file: null, preview: [], newCategorias: [] });
+      
+      if (errorCount === 0) {
+        toast.success(`Importação concluída! ${successCount} lançamentos importados com sucesso.`);
+      } else {
+        toast.warning(`Importação concluída com avisos: ${successCount} importados, ${errorCount} com erro.`);
+      }
+    } catch (error) {
+      console.error('Erro na importação:', error);
+      toast.error('Erro ao importar lançamentos. Tente novamente.');
+    }
   };
 
   if (isLoading) {
@@ -332,7 +582,7 @@ export default function Configuracoes() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} lg:w-[600px]`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-2'} lg:w-[1000px]`}>
           <TabsTrigger value="empresa" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Empresa
@@ -342,10 +592,20 @@ export default function Configuracoes() {
             Minha Conta
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="usuarios" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Usuários
-            </TabsTrigger>
+            <>
+              <TabsTrigger value="usuarios" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Usuários
+              </TabsTrigger>
+              <TabsTrigger value="categorias_financeiras" className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Categorias
+              </TabsTrigger>
+              <TabsTrigger value="importar_lancamentos" className="flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4" />
+                Importar
+              </TabsTrigger>
+            </>
           )}
         </TabsList>
 
@@ -794,6 +1054,416 @@ export default function Configuracoes() {
             </Card>
           </TabsContent>
         )}
+
+        {/* Categorias Financeiras Tab (Admin only) */}
+        {isAdmin && (
+          <TabsContent value="categorias_financeiras" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  Gerenciar Categorias Financeiras
+                </CardTitle>
+                <CardDescription>
+                  Crie e gerencie categorias para classificar receitas e despesas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="max-h-[800px]">
+                  <div className="space-y-4">
+                    {loadingCategorias ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3, 4].map(i => (
+                          <div key={i} className="flex items-center gap-4">
+                            <Skeleton className="h-10 w-10 rounded-full" />
+                            <div className="flex-1">
+                              <Skeleton className="h-4 w-32 mb-2" />
+                              <Skeleton className="h-3 w-48" />
+                            </div>
+                            <Skeleton className="h-9 w-24" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : categoriasFinanceiras && categoriasFinanceiras.length > 0 ? (
+                    <div className="grid gap-6 md:grid-cols-2">
+                      {/* Receitas */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg font-semibold text-success flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <ArrowUpCircle className="h-5 w-5" />
+                              Receitas
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => setCategoriaDialog({ open: true, categoria: { tipo: 'receita' } })}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Receita
+                            </Button>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ScrollArea className="h-[500px]">
+                            <div className="space-y-3 pr-4">
+                              {categoriasFinanceiras.filter(cat => cat.tipo === 'receita').map((cat) => (
+                                <div
+                                  key={cat.id}
+                                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-4">
+                                    <div
+                                      className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                      style={{ backgroundColor: cat.cor }}
+                                    >
+                                      <ArrowUpCircle className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium truncate">{cat.nome}</p>
+                                      <p className="text-sm text-muted-foreground truncate">{cat.descricao || 'Sem descrição'}</p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <Badge variant="default">
+                                          Receita
+                                        </Badge>
+                                        <div className="flex items-center gap-1">
+                                          <Palette className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-xs text-muted-foreground">{cat.cor}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setCategoriaDialog({ open: true, categoria: cat })}
+                                      disabled={updateCategoria.isPending}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => {
+                                        setConfirmDialog({
+                                          open: true,
+                                          userId: cat.id,
+                                          userName: cat.nome,
+                                          action: 'delete_categoria'
+                                        });
+                                      }}
+                                      disabled={deleteCategoria.isPending}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                              {categoriasFinanceiras.filter(cat => cat.tipo === 'receita').length === 0 && (
+                                <p className="text-center text-muted-foreground py-4">
+                                  Nenhuma categoria de receita encontrada
+                                </p>
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </CardContent>
+                      </Card>
+
+                      {/* Despesas */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg font-semibold text-destructive flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <ArrowDownCircle className="h-5 w-5" />
+                              Despesas
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => setCategoriaDialog({ open: true, categoria: { tipo: 'despesa' } })}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Despesa
+                            </Button>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ScrollArea className="h-[500px]">
+                            <div className="space-y-3 pr-4">
+                              {categoriasFinanceiras.filter(cat => cat.tipo === 'despesa').map((cat) => (
+                                <div
+                                  key={cat.id}
+                                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-4">
+                                    <div
+                                      className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                      style={{ backgroundColor: cat.cor }}
+                                    >
+                                      <ArrowDownCircle className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium truncate">{cat.nome}</p>
+                                      <p className="text-sm text-muted-foreground truncate">{cat.descricao || 'Sem descrição'}</p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <Badge variant="secondary">
+                                          Despesa
+                                        </Badge>
+                                        <div className="flex items-center gap-1">
+                                          <Palette className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-xs text-muted-foreground">{cat.cor}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setCategoriaDialog({ open: true, categoria: cat })}
+                                      disabled={updateCategoria.isPending}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => {
+                                        setConfirmDialog({
+                                          open: true,
+                                          userId: cat.id,
+                                          userName: cat.nome,
+                                          action: 'delete_categoria'
+                                        });
+                                      }}
+                                      disabled={deleteCategoria.isPending}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                              {categoriasFinanceiras.filter(cat => cat.tipo === 'despesa').length === 0 && (
+                                <p className="text-center text-muted-foreground py-4">
+                                  Nenhuma categoria de despesa encontrada
+                                </p>
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <DollarSign className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                        <p>Nenhuma categoria encontrada</p>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {/* Importar Lançamentos Tab (Admin only) */}
+        {isAdmin && (
+          <TabsContent value="importar_lancamentos" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5 text-primary" />
+                  Importar Lançamentos Financeiros
+                </CardTitle>
+                <CardDescription>
+                  Importe lançamentos financeiros de uma planilha Excel (.xlsx)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Botão de apagar todos os lançamentos */}
+                <div className="flex items-center justify-between p-4 border border-destructive/50 rounded-lg bg-destructive/5">
+                  <div>
+                    <h4 className="font-medium text-destructive mb-1">Zerar Lançamentos</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Exclua todos os lançamentos financeiros do sistema
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setConfirmDialog({
+                      open: true,
+                      userId: '',
+                      userName: '',
+                      action: 'delete_all_lancamentos'
+                    })}
+                    disabled={deletingAllLancamentos}
+                  >
+                    {deletingAllLancamentos ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Excluindo...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Apagar Todos
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Download do modelo */}
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                  <div>
+                    <h4 className="font-medium mb-1">Modelo de Planilha</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Baixe o modelo para ver a estrutura de dados necessária
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDownloadModelo()}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Modelo
+                  </Button>
+                </div>
+
+                {/* Upload do arquivo */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium mb-1">Carregar Arquivo</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Selecione um arquivo .xlsx com os lançamentos
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileUpload}
+                    disabled={importDialog.open}
+                    className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:text-foreground file:cursor-pointer"
+                  />
+                </div>
+
+                {/* Preview dos dados */}
+                {importDialog.preview.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium mb-1">Pré-visualização ({importDialog.preview.length} registros)</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Verifique os dados antes de importar
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => setImportDialog({ open: false, file: null, preview: [], newCategorias: [] })}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Limpar
+                      </Button>
+                    </div>
+
+                    {/* Alerta de novas categorias */}
+                    {importDialog.newCategorias.length > 0 && (
+                      <div className="p-4 border border-warning bg-warning/10 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+                          <div>
+                            <h5 className="font-medium text-warning mb-1">Novas categorias serão criadas</h5>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              As seguintes categorias não existem no sistema e serão criadas automaticamente:
+                            </p>
+                            <ul className="text-sm list-disc list-inside space-y-1">
+                              {importDialog.newCategorias.map((cat, idx) => (
+                                <li key={idx}>{cat}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tabela de preview */}
+                    <ScrollArea className="max-h-[400px] border rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            <th className="p-3 text-left font-medium">Data</th>
+                            <th className="p-3 text-left font-medium">Tipo</th>
+                            <th className="p-3 text-left font-medium">Categoria</th>
+                            <th className="p-3 text-left font-medium">Descrição</th>
+                            <th className="p-3 text-right font-medium">Valor</th>
+                            <th className="p-3 text-left font-medium">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importDialog.preview.slice(0, 50).map((row, idx) => (
+                            <tr key={idx} className="border-t hover:bg-muted/50">
+                              <td className="p-3">{row.data}</td>
+                              <td className="p-3">
+                                <Badge variant={row.tipo === 'receita' ? 'default' : 'secondary'}>
+                                  {row.tipo}
+                                </Badge>
+                              </td>
+                              <td className="p-3">{row.categoria}</td>
+                              <td className="p-3">{row.descricao}</td>
+                              <td className="p-3 text-right font-medium">
+                                {row.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </td>
+                              <td className="p-3">
+                                <Badge variant={row.status === 'realizado' ? 'default' : 'outline'}>
+                                  {row.status}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                          {importDialog.preview.length > 50 && (
+                            <tr>
+                              <td colSpan={6} className="p-3 text-center text-muted-foreground">
+                                ... e mais {importDialog.preview.length - 50} registros
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </ScrollArea>
+
+                    {/* Botão de importação */}
+                    <div className="flex justify-end gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={() => setImportDialog({ open: false, file: null, preview: [], newCategorias: [] })}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={handleImportLancamentos}
+                        disabled={createLancamento.isPending || createCategoria.isPending}
+                      >
+                        {createLancamento.isPending || createCategoria.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Importando...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Importar {importDialog.preview.length} Lançamentos
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Confirmation Dialog */}
@@ -815,15 +1485,31 @@ export default function Configuracoes() {
               )}
               {confirmDialog.action === 'promote' && 'Promover a Administrador'}
               {confirmDialog.action === 'demote' && 'Rebaixar para Usuário'}
+              {confirmDialog.action === 'delete_categoria' && (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Excluir Categoria
+                </>
+              )}
+              {confirmDialog.action === 'delete_all_lancamentos' && (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Apagar Todos os Lançamentos
+                </>
+              )}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDialog.action === 'delete'
                 ? `Tem certeza que deseja excluir "${confirmDialog.userName}"? Esta ação não pode ser desfeita e removerá todos os dados do usuário do sistema.`
                 : confirmDialog.action === 'delete_logo'
                   ? `Tem certeza que deseja excluir a logomarca ${confirmDialog.logoType === 'logo_sistema' ? 'do Sistema' : 'do Orçamento'}? Esta ação não pode ser desfeita.`
-                  : confirmDialog.action === 'promote'
-                    ? `Tem certeza que deseja promover "${confirmDialog.userName}" a administrador? Administradores têm acesso total ao sistema, incluindo valores financeiros e gerenciamento de usuários.`
-                    : `Tem certeza que deseja rebaixar "${confirmDialog.userName}" para usuário comum? O usuário perderá acesso a funcionalidades administrativas.`
+                  : confirmDialog.action === 'delete_categoria'
+                    ? `Tem certeza que deseja excluir a categoria "${confirmDialog.userName}"? Esta ação não pode ser desfeita.`
+                    : confirmDialog.action === 'delete_all_lancamentos'
+                      ? `Tem certeza que deseja apagar TODOS os lançamentos financeiros do sistema? Esta ação NÃO pode ser desfeita e removerá permanentemente todos os registros de receitas e despesas.`
+                      : confirmDialog.action === 'promote'
+                      ? `Tem certeza que deseja promover "${confirmDialog.userName}" a administrador? Administradores têm acesso total ao sistema, incluindo valores financeiros e gerenciamento de usuários.`
+                      : `Tem certeza que deseja rebaixar "${confirmDialog.userName}" para usuário comum? O usuário perderá acesso a funcionalidades administrativas.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -833,11 +1519,13 @@ export default function Configuracoes() {
               onClick={
                 confirmDialog.action === 'delete' ? confirmDeleteUser :
                 confirmDialog.action === 'delete_logo' ? confirmDeleteLogo :
+                confirmDialog.action === 'delete_categoria' ? handleDeleteCategoria :
+                confirmDialog.action === 'delete_all_lancamentos' ? () => deleteAllLancamentos() :
                 confirmRoleChange
               }
-              className={(confirmDialog.action === 'delete' || confirmDialog.action === 'delete_logo') ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+              className={(confirmDialog.action === 'delete' || confirmDialog.action === 'delete_logo' || confirmDialog.action === 'delete_categoria' || confirmDialog.action === 'delete_all_lancamentos') ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
             >
-              {(updateUserRole.isPending || deleteUser.isPending || updateConfig.isPending) ? (
+              {(updateUserRole.isPending || deleteUser.isPending || updateConfig.isPending || deletingAllLancamentos) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 'Confirmar'
@@ -1065,6 +1753,175 @@ export default function Configuracoes() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Categoria Financeira Dialog */}
+      <Dialog open={categoriaDialog.open} onOpenChange={(open) => setCategoriaDialog(prev => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {categoriaDialog.categoria?.id ? (
+                <>
+                  <Edit className="h-5 w-5 text-primary" />
+                  Editar Categoria
+                </>
+              ) : categoriaDialog.categoria?.tipo === 'receita' ? (
+                <>
+                  <Plus className="h-5 w-5 text-primary" />
+                  Nova Receita
+                </>
+              ) : (
+                <>
+                  <Plus className="h-5 w-5 text-primary" />
+                  Nova Despesa
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {categoriaDialog.categoria?.id
+                ? 'Atualize as informações da categoria financeira'
+                : categoriaDialog.categoria?.tipo === 'receita'
+                  ? 'Preencha os dados para criar uma nova categoria de receita'
+                  : 'Preencha os dados para criar uma nova categoria de despesa'
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const categoria = {
+                nome: formData.get('nome') as string,
+                tipo: formData.get('tipo') as 'receita' | 'despesa',
+                descricao: formData.get('descricao') as string,
+                cor: formData.get('cor') as string,
+                ativo: true,
+              };
+              
+              if (categoriaDialog.categoria) {
+                handleUpdateCategoria(categoria);
+              } else {
+                handleCreateCategoria(categoria);
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="cat_nome">Nome *</Label>
+              <Input
+                id="cat_nome"
+                name="nome"
+                defaultValue={categoriaDialog.categoria?.nome || ''}
+                placeholder="Ex: Aluguel, Vendas, Salários"
+                required
+              />
+            </div>
+
+            {!categoriaDialog.categoria?.id && (
+              <input
+                type="hidden"
+                name="tipo"
+                value={categoriaDialog.categoria?.tipo || 'receita'}
+              />
+            )}
+            {categoriaDialog.categoria?.id && (
+              <div className="space-y-2">
+                <Label htmlFor="cat_tipo">Tipo *</Label>
+                <Select
+                  name="tipo"
+                  defaultValue={categoriaDialog.categoria?.tipo}
+                  disabled
+                >
+                  <SelectTrigger id="cat_tipo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="receita">Receita</SelectItem>
+                    <SelectItem value="despesa">Despesa</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  O tipo não pode ser alterado em categorias existentes
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="cat_descricao">Descrição</Label>
+              <Textarea
+                id="cat_descricao"
+                name="descricao"
+                defaultValue={categoriaDialog.categoria?.descricao || ''}
+                placeholder="Descrição opcional da categoria"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cat_cor">Cor *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="cat_cor"
+                  name="cor"
+                  type="color"
+                  defaultValue={categoriaDialog.categoria?.cor || '#22c55e'}
+                  className="w-20 h-10 p-1"
+                  required
+                />
+                <Input
+                  type="text"
+                  defaultValue={categoriaDialog.categoria?.cor || '#22c55e'}
+                  placeholder="#22c55e"
+                  className="flex-1"
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                  title="Formato hexadecimal: #RRGGBB"
+                  onChange={(e) => {
+                    const input = document.getElementById('cat_cor') as HTMLInputElement;
+                    if (input && /^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+                      input.value = e.target.value;
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCategoriaDialog({ open: false })}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={createCategoria.isPending || updateCategoria.isPending}
+              >
+                {createCategoria.isPending || updateCategoria.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : categoriaDialog.categoria?.id ? (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Atualizar
+                  </>
+                ) : categoriaDialog.categoria?.tipo === 'receita' ? (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Criar Receita
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Criar Despesa
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

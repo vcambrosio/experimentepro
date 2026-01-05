@@ -1,6 +1,8 @@
 // Types for Experimente Pro
 
 export type TipoPessoa = 'fisica' | 'juridica';
+export type TipoFinanceiro = 'receita' | 'despesa';
+export type StatusLancamento = 'pendente' | 'realizado' | 'cancelado';
 export type StatusOrcamento = 'pendente' | 'aprovado' | 'recusado' | 'expirado' | 'perdido';
 export type StatusPedido = 'pendente' | 'executado' | 'cancelado';
 export type StatusPagamento = 'pendente' | 'pago';
@@ -142,4 +144,63 @@ export interface ConfiguracaoEmpresa {
   endereco?: string;
   validade_orcamento_dias: number;
   updated_at: string;
+}
+
+export interface CategoriaFinanceira {
+  id: string;
+  nome: string;
+  tipo: TipoFinanceiro;
+  descricao?: string;
+  ativo: boolean;
+  cor: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LancamentoFinanceiro {
+  id: string;
+  tipo: TipoFinanceiro;
+  categoria_id: string;
+  descricao: string;
+  valor: number;
+  data_lancamento: string;
+  data_pagamento?: string;
+  status: StatusLancamento;
+  forma_pagamento?: string;
+  observacoes?: string;
+  pedido_id?: string;
+  recorrente: boolean;
+  recorrencia_periodo?: 'mensal' | 'trimestral' | 'semestral' | 'anual';
+  created_at: string;
+  created_by?: string;
+  updated_at: string;
+  categoria?: CategoriaFinanceira;
+  pedido?: Pedido;
+}
+
+export interface FluxoCaixa {
+  data: string;
+  receitas: number;
+  despesas: number;
+  saldo: number;
+  receitas_realizadas: number;
+  despesas_realizadas: number;
+  saldo_realizado: number;
+}
+
+export interface Balanco {
+  periodo: string;
+  totalReceitas: number;
+  totalDespesas: number;
+  lucro: number;
+  receitasPorCategoria: Array<{
+    categoria: string;
+    valor: number;
+    porcentagem: number;
+  }>;
+  despesasPorCategoria: Array<{
+    categoria: string;
+    valor: number;
+    porcentagem: number;
+  }>;
 }

@@ -3,8 +3,9 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, Search, Eye, Edit, Trash2, Loader2, Calendar, Filter, CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react';
 import { usePedidos, useDeletePedido, useUpdatePedido } from '@/hooks/usePedidos';
+import { useCreateLancamento } from '@/hooks/useFinanceiro';
 import { useAuth } from '@/contexts/AuthContext';
-import { Pedido, StatusPedido, StatusPagamento } from '@/types';
+import { Pedido, StatusPedido, StatusPagamento, LancamentoFinanceiro } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { PedidoFormDialog } from '@/components/pedidos/PedidoFormDialog';
 import { PedidoViewDialog } from '@/components/pedidos/PedidoViewDialog';
+import { LancamentoFormDialog } from '@/components/financeiro/LancamentoFormDialog';
 
 const statusLabels: Record<StatusPedido, string> = {
   pendente: 'Pendente',
@@ -83,6 +85,7 @@ export default function Pedidos() {
   const { data: pedidos, isLoading, error } = usePedidos();
   const deletePedido = useDeletePedido();
   const updatePedido = useUpdatePedido();
+  const createLancamento = useCreateLancamento();
   
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -91,7 +94,9 @@ export default function Pedidos() {
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [lancamentoDialogOpen, setLancamentoDialogOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
+  const [pedidoParaLancamento, setPedidoParaLancamento] = useState<Pedido | null>(null);
 
   const filteredPedidos = pedidos?.filter(pedido => {
     const matchesSearch = 
@@ -139,11 +144,40 @@ export default function Pedidos() {
   };
 
   const handlePagamentoChange = async (pedido: Pedido, newStatus: StatusPagamento) => {
-    await updatePedido.mutateAsync({
-      id: pedido.id,
-      status_pagamento: newStatus,
-      paid_at: newStatus === 'pago' ? new Date().toISOString() : null,
-    });
+    if (newStatus === 'pago') {
+      // Abrir diálogo de lançamento financeiro
+      setPedidoParaLancamento(pedido);
+      setLancamentoDialogOpen(true);
+    } else {
+      // Marcar como pendente diretamente
+      await updatePedido.mutateAsync({
+        id: pedido.id,
+        status_pagamento: newStatus,
+        paid_at: null,
+      });
+    }
+  };
+
+  const handleCreateLancamentoFromPedido = async (lancamento: Omit<LancamentoFinanceiro, 'id' | 'created_at' | 'updated_at' | 'categoria' | 'pedido'>) => {
+    try {
+      // Criar o lançamento financeiro
+      await createLancamento.mutateAsync({
+        ...lancamento,
+        pedido_id: pedidoParaLancamento?.id,
+      });
+
+      // Atualizar o status do pedido para pago
+      await updatePedido.mutateAsync({
+        id: pedidoParaLancamento!.id,
+        status_pagamento: 'pago',
+        paid_at: new Date().toISOString(),
+      });
+
+      setLancamentoDialogOpen(false);
+      setPedidoParaLancamento(null);
+    } catch (error) {
+      console.error('Erro ao criar lançamento:', error);
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -326,7 +360,7 @@ export default function Pedidos() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handlePagamentoChange(pedido, 'pago')}>
                           <DollarSign className="mr-2 h-4 w-4" />
-                          Pago
+                          Registrar Pagamento
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -407,6 +441,19 @@ export default function Pedidos() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Lançamento Financeiro Dialog */}
+      <LancamentoFormDialog
+        open={lancamentoDialogOpen}
+        onOpenChange={setLancamentoDialogOpen}
+        onSubmit={handleCreateLancamentoFromPedido}
+        pedidoParaLancamento={pedidoParaLancamento ? {
+          id: pedidoParaLancamento.id,
+          valor_total: pedidoParaLancamento.valor_total,
+          cliente: pedidoParaLancamento.cliente,
+        } : undefined}
+        isLoading={createLancamento.isPending || updatePedido.isPending}
+      />
     </div>
   );
 }

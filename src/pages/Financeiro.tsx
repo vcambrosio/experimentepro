@@ -10,7 +10,9 @@ import {
   eachWeekOfInterval,
   eachMonthOfInterval,
   isWithinInterval,
-  subMonths
+  subMonths,
+  parseISO,
+  isValid
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -20,7 +22,15 @@ import {
   FileText,
   TrendingUp,
   AlertCircle,
-  Receipt
+  Receipt,
+  Plus,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Calendar,
+  Filter,
+  Trash2,
+  Edit,
+  PieChart
 } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +40,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -37,6 +48,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   BarChart,
   Bar,
@@ -47,14 +70,68 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  Legend,
 } from 'recharts';
+import { LancamentoFormDialog } from '@/components/financeiro/LancamentoFormDialog';
+import { 
+  useLancamentosFinanceiros, 
+  useCreateLancamento, 
+  useUpdateLancamento, 
+  useDeleteLancamento,
+  useResumoFinanceiro,
+  useFluxoCaixa,
+  useBalanco
+} from '@/hooks/useFinanceiro';
+import type { LancamentoFinanceiro, TipoFinanceiro, StatusLancamento } from '@/types';
+import { toast } from 'sonner';
 
 type ViewPeriod = 'week' | 'month' | 'year';
 
+const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+
 export default function Financeiro() {
   const { isAdmin } = useAuth();
-  const { data: pedidos, isLoading } = usePedidos();
+  const { data: pedidos, isLoading: isLoadingPedidos } = usePedidos();
+  
+  // Estado para lançamentos
+  const [lancamentoDialogOpen, setLancamentoDialogOpen] = useState(false);
+  const [editingLancamento, setEditingLancamento] = useState<LancamentoFinanceiro | undefined>();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [lancamentoToDelete, setLancamentoToDelete] = useState<string | null>(null);
+  
+  // Filtros
   const [viewPeriod, setViewPeriod] = useState<ViewPeriod>('month');
+  const [filtroTipo, setFiltroTipo] = useState<TipoFinanceiro | 'todos'>('todos');
+  const [filtroStatus, setFiltroStatus] = useState<StatusLancamento | 'todos'>('todos');
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+  
+  // Hooks para lançamentos
+  const { data: lancamentos, isLoading: isLoadingLancamentos } = useLancamentosFinanceiros(
+    filtroTipo === 'todos' ? undefined : filtroTipo,
+    filtroStatus === 'todos' ? undefined : filtroStatus,
+    dataInicio || undefined,
+    dataFim || undefined
+  );
+  
+  const { data: resumo } = useResumoFinanceiro(dataInicio || undefined, dataFim || undefined);
+  
+  const { data: fluxoCaixa } = useFluxoCaixa(
+    dataInicio || startOfMonth(new Date()).toISOString().split('T')[0],
+    dataFim || endOfMonth(new Date()).toISOString().split('T')[0]
+  );
+  
+  const { data: balanco } = useBalanco(
+    dataInicio || startOfMonth(new Date()).toISOString().split('T')[0],
+    dataFim || endOfMonth(new Date()).toISOString().split('T')[0]
+  );
+  
+  const createLancamento = useCreateLancamento();
+  const updateLancamento = useUpdateLancamento();
+  const deleteLancamento = useDeleteLancamento();
 
   // Redirect non-admin users
   if (!isAdmin) {
@@ -68,6 +145,60 @@ export default function Financeiro() {
     }).format(value);
   };
 
+  const formatDate = (dateString: string) => {
+    const date = parseISO(dateString);
+    if (!isValid(date)) return dateString;
+    return format(date, 'dd/MM/yyyy', { locale: ptBR });
+  };
+
+  // Handlers
+  const handleCreateLancamento = async (lancamento: Omit<LancamentoFinanceiro, 'id' | 'created_at' | 'updated_at' | 'categoria' | 'pedido'>) => {
+    try {
+      await createLancamento.mutateAsync(lancamento);
+      toast.success('Lançamento criado com sucesso!');
+      setLancamentoDialogOpen(false);
+    } catch (error) {
+      toast.error('Erro ao criar lançamento');
+      console.error(error);
+    }
+  };
+
+  const handleUpdateLancamento = async (lancamento: Omit<LancamentoFinanceiro, 'id' | 'created_at' | 'updated_at' | 'categoria' | 'pedido'>) => {
+    if (!editingLancamento) return;
+    try {
+      await updateLancamento.mutateAsync({ id: editingLancamento.id, ...lancamento });
+      toast.success('Lançamento atualizado com sucesso!');
+      setLancamentoDialogOpen(false);
+      setEditingLancamento(undefined);
+    } catch (error) {
+      toast.error('Erro ao atualizar lançamento');
+      console.error(error);
+    }
+  };
+
+  const handleDeleteLancamento = async () => {
+    if (!lancamentoToDelete) return;
+    try {
+      await deleteLancamento.mutateAsync(lancamentoToDelete);
+      toast.success('Lançamento excluído com sucesso!');
+      setDeleteDialogOpen(false);
+      setLancamentoToDelete(null);
+    } catch (error) {
+      toast.error('Erro ao excluir lançamento');
+      console.error(error);
+    }
+  };
+
+  const openEditDialog = (lancamento: LancamentoFinanceiro) => {
+    setEditingLancamento(lancamento);
+    setLancamentoDialogOpen(true);
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setLancamentoToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
   // Filter pedidos by status
   const pedidosPendentes = useMemo(() => 
     pedidos?.filter(p => p.status !== 'cancelado' && p.status_pagamento === 'pendente') || [],
@@ -79,30 +210,17 @@ export default function Financeiro() {
     [pedidos]
   );
 
-  const pedidosComNota = useMemo(() =>
-    pedidos?.filter(p => p.emite_nota_fiscal) || [],
-    [pedidos]
-  );
-
-  const pedidosSemNota = useMemo(() =>
-    pedidos?.filter(p => !p.emite_nota_fiscal) || [],
-    [pedidos]
-  );
-
-  // Calculate totals
-  const totalPendente = pedidosPendentes.reduce((acc, p) => acc + (p.valor_total || 0), 0);
-  const totalPago = pedidosPagos.reduce((acc, p) => acc + (p.valor_total || 0), 0);
-  const totalComNota = pedidosComNota.reduce((acc, p) => acc + (p.valor_total || 0), 0);
-  const totalSemNota = pedidosSemNota.reduce((acc, p) => acc + (p.valor_total || 0), 0);
+  // Calculate totals from pedidos
+  const totalPendentePedidos = pedidosPendentes.reduce((acc, p) => acc + (p.valor_total || 0), 0);
+  const totalPagoPedidos = pedidosPagos.reduce((acc, p) => acc + (p.valor_total || 0), 0);
 
   // Generate chart data based on period
   const chartData = useMemo(() => {
-    if (!pedidos) return [];
+    if (!lancamentos || lancamentos.length === 0) return [];
 
     const now = new Date();
     
     if (viewPeriod === 'week') {
-      // Last 8 weeks
       const weeks = eachWeekOfInterval({
         start: subMonths(now, 2),
         end: now,
@@ -110,25 +228,26 @@ export default function Financeiro() {
 
       return weeks.map(weekStart => {
         const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
-        const weekPedidos = pedidos.filter(p => {
-          const pedidoDate = new Date(p.data_hora_entrega);
-          return isWithinInterval(pedidoDate, { start: weekStart, end: weekEnd });
+        const weekLancamentos = lancamentos.filter(l => {
+          const lancamentoDate = parseISO(l.data_lancamento);
+          return isValid(lancamentoDate) && isWithinInterval(lancamentoDate, { start: weekStart, end: weekEnd });
         });
 
-        const total = weekPedidos.reduce((acc, p) => acc + (p.valor_total || 0), 0);
-        const pago = weekPedidos
-          .filter(p => p.status_pagamento === 'pago')
-          .reduce((acc, p) => acc + (p.valor_total || 0), 0);
+        const receitas = weekLancamentos
+          .filter(l => l.tipo === 'receita')
+          .reduce((acc, l) => acc + l.valor, 0);
+        const despesas = weekLancamentos
+          .filter(l => l.tipo === 'despesa')
+          .reduce((acc, l) => acc + l.valor, 0);
 
         return {
           name: format(weekStart, "'Sem' w", { locale: ptBR }),
-          total,
-          pago,
-          pendente: total - pago,
+          receitas,
+          despesas,
+          saldo: receitas - despesas,
         };
       });
     } else if (viewPeriod === 'month') {
-      // Last 12 months
       const months = eachMonthOfInterval({
         start: subMonths(now, 11),
         end: now,
@@ -136,50 +255,53 @@ export default function Financeiro() {
 
       return months.map(monthStart => {
         const monthEnd = endOfMonth(monthStart);
-        const monthPedidos = pedidos.filter(p => {
-          const pedidoDate = new Date(p.data_hora_entrega);
-          return isWithinInterval(pedidoDate, { start: monthStart, end: monthEnd });
+        const monthLancamentos = lancamentos.filter(l => {
+          const lancamentoDate = parseISO(l.data_lancamento);
+          return isValid(lancamentoDate) && isWithinInterval(lancamentoDate, { start: monthStart, end: monthEnd });
         });
 
-        const total = monthPedidos.reduce((acc, p) => acc + (p.valor_total || 0), 0);
-        const pago = monthPedidos
-          .filter(p => p.status_pagamento === 'pago')
-          .reduce((acc, p) => acc + (p.valor_total || 0), 0);
+        const receitas = monthLancamentos
+          .filter(l => l.tipo === 'receita')
+          .reduce((acc, l) => acc + l.valor, 0);
+        const despesas = monthLancamentos
+          .filter(l => l.tipo === 'despesa')
+          .reduce((acc, l) => acc + l.valor, 0);
 
         return {
           name: format(monthStart, 'MMM', { locale: ptBR }),
-          total,
-          pago,
-          pendente: total - pago,
+          receitas,
+          despesas,
+          saldo: receitas - despesas,
         };
       });
     } else {
-      // Last 5 years
       const currentYear = now.getFullYear();
       const years = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
 
       return years.map(year => {
         const yearStart = startOfYear(new Date(year, 0, 1));
         const yearEnd = endOfYear(new Date(year, 0, 1));
-        const yearPedidos = pedidos.filter(p => {
-          const pedidoDate = new Date(p.data_hora_entrega);
-          return isWithinInterval(pedidoDate, { start: yearStart, end: yearEnd });
+        const yearLancamentos = lancamentos.filter(l => {
+          const lancamentoDate = parseISO(l.data_lancamento);
+          return isValid(lancamentoDate) && isWithinInterval(lancamentoDate, { start: yearStart, end: yearEnd });
         });
 
-        const total = yearPedidos.reduce((acc, p) => acc + (p.valor_total || 0), 0);
-        const pago = yearPedidos
-          .filter(p => p.status_pagamento === 'pago')
-          .reduce((acc, p) => acc + (p.valor_total || 0), 0);
+        const receitas = yearLancamentos
+          .filter(l => l.tipo === 'receita')
+          .reduce((acc, l) => acc + l.valor, 0);
+        const despesas = yearLancamentos
+          .filter(l => l.tipo === 'despesa')
+          .reduce((acc, l) => acc + l.valor, 0);
 
         return {
           name: year.toString(),
-          total,
-          pago,
-          pendente: total - pago,
+          receitas,
+          despesas,
+          saldo: receitas - despesas,
         };
       });
     }
-  }, [pedidos, viewPeriod]);
+  }, [lancamentos, viewPeriod]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -197,6 +319,8 @@ export default function Financeiro() {
     return null;
   };
 
+  const isLoading = isLoadingPedidos || isLoadingLancamentos;
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -211,168 +335,286 @@ export default function Financeiro() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-          <TrendingUp className="h-6 w-6 text-primary" />
-          Financeiro
-        </h1>
-        <p className="text-muted-foreground">Visão financeira completa do negócio</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
+            <TrendingUp className="h-6 w-6 text-primary" />
+            Financeiro
+          </h1>
+          <p className="text-muted-foreground">Visão financeira completa do negócio</p>
+        </div>
+        <Button onClick={() => {
+          setEditingLancamento(undefined);
+          setLancamentoDialogOpen(true);
+        }}>
+          <Plus className="h-4 w-4 mr-2" />
+          Novo Lançamento
+        </Button>
       </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-l-4 border-l-success">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Receitas</CardTitle>
+            <ArrowUpCircle className="h-4 w-4 text-success" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-success">{formatCurrency(resumo?.totalReceitas || 0)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {resumo?.receitasRealizadas || 0} realizadas
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-destructive">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Despesas</CardTitle>
+            <ArrowDownCircle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{formatCurrency(resumo?.totalDespesas || 0)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {resumo?.despesasRealizadas || 0} realizadas
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Atual</CardTitle>
+            <DollarSign className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${(resumo?.saldo || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {formatCurrency(resumo?.saldo || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatCurrency(resumo?.saldoRealizado || 0)} realizado
+            </p>
+          </CardContent>
+        </Card>
+
         <Card className="border-l-4 border-l-warning">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">A Receber</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">A Receber (Pedidos)</CardTitle>
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">{formatCurrency(totalPendente)}</div>
+            <div className="text-2xl font-bold text-warning">{formatCurrency(totalPendentePedidos)}</div>
             <p className="text-xs text-muted-foreground mt-1">{pedidosPendentes.length} pedidos pendentes</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-success">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Recebido</CardTitle>
-            <CheckCircle className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">{formatCurrency(totalPago)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{pedidosPagos.length} pedidos pagos</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-info">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Com Nota Fiscal</CardTitle>
-            <FileText className="h-4 w-4 text-info" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-info">{formatCurrency(totalComNota)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{pedidosComNota.length} pedidos</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-muted">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Sem Nota Fiscal</CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalSemNota)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{pedidosSemNota.length} pedidos</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Chart */}
+      {/* Filters */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Vendas por Período</CardTitle>
-            <Select value={viewPeriod} onValueChange={(v: ViewPeriod) => setViewPeriod(v)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="week">Semanal</SelectItem>
-                <SelectItem value="month">Mensal</SelectItem>
-                <SelectItem value="year">Anual</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="name" 
-                  className="text-xs"
-                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                />
-                <YAxis 
-                  className="text-xs"
-                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                  tickFormatter={(value) => `R$${(value / 1000).toFixed(0)}k`}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="pago" name="Pago" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="pendente" name="Pendente" fill="hsl(var(--warning))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex justify-center gap-6 mt-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-success" />
-              <span className="text-sm text-muted-foreground">Pago</span>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="data_inicio">Data Início</Label>
+              <Input
+                id="data_inicio"
+                type="date"
+                value={dataInicio}
+                onChange={(e) => setDataInicio(e.target.value)}
+              />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-warning" />
-              <span className="text-sm text-muted-foreground">Pendente</span>
+            <div className="space-y-2">
+              <Label htmlFor="data_fim">Data Fim</Label>
+              <Input
+                id="data_fim"
+                type="date"
+                value={dataFim}
+                onChange={(e) => setDataFim(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filtro_tipo">Tipo</Label>
+              <Select value={filtroTipo} onValueChange={(value: TipoFinanceiro | 'todos') => setFiltroTipo(value)}>
+                <SelectTrigger id="filtro_tipo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="receita">Receitas</SelectItem>
+                  <SelectItem value="despesa">Despesas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filtro_status">Status</Label>
+              <Select value={filtroStatus} onValueChange={(value: StatusLancamento | 'todos') => setFiltroStatus(value)}>
+                <SelectTrigger id="filtro_status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="realizado">Realizado</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Tabs with orders lists */}
-      <Tabs defaultValue="pendentes">
+      {/* Tabs */}
+      <Tabs defaultValue="visao_geral" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="pendentes" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <span className="hidden sm:inline">Pendentes</span>
-            <Badge variant="secondary" className="ml-1">{pedidosPendentes.length}</Badge>
+          <TabsTrigger value="visao_geral" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            <span className="hidden sm:inline">Visão Geral</span>
           </TabsTrigger>
-          <TabsTrigger value="pagos" className="flex items-center gap-2">
-            <CheckCircle className="h-4 w-4" />
-            <span className="hidden sm:inline">Pagos</span>
-            <Badge variant="secondary" className="ml-1">{pedidosPagos.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="comNota" className="flex items-center gap-2">
+          <TabsTrigger value="lancamentos" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Com NF</span>
-            <Badge variant="secondary" className="ml-1">{pedidosComNota.length}</Badge>
+            <span className="hidden sm:inline">Lançamentos</span>
           </TabsTrigger>
-          <TabsTrigger value="semNota" className="flex items-center gap-2">
-            <Receipt className="h-4 w-4" />
-            <span className="hidden sm:inline">Sem NF</span>
-            <Badge variant="secondary" className="ml-1">{pedidosSemNota.length}</Badge>
+          <TabsTrigger value="fluxo_caixa" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            <span className="hidden sm:inline">Fluxo de Caixa</span>
+          </TabsTrigger>
+          <TabsTrigger value="balanco" className="flex items-center gap-2">
+            <PieChart className="h-4 w-4" />
+            <span className="hidden sm:inline">Balanço</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pendentes">
+        {/* Visão Geral */}
+        <TabsContent value="visao_geral" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Receitas vs Despesas por Período</CardTitle>
+                <Select value={viewPeriod} onValueChange={(v: ViewPeriod) => setViewPeriod(v)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="week">Semanal</SelectItem>
+                    <SelectItem value="month">Mensal</SelectItem>
+                    <SelectItem value="year">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="name" 
+                      className="text-xs"
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                    <YAxis 
+                      className="text-xs"
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      tickFormatter={(value) => `R$${(value / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="receitas" name="Receitas" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="despesas" name="Despesas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-6 mt-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded bg-success" />
+                  <span className="text-sm text-muted-foreground">Receitas</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded bg-destructive" />
+                  <span className="text-sm text-muted-foreground">Despesas</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Lançamentos */}
+        <TabsContent value="lancamentos" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-warning" />
-                Pedidos com Pagamento Pendente
+                <FileText className="h-5 w-5" />
+                Lançamentos Financeiros
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px]">
+              <ScrollArea className="h-[500px]">
                 <div className="space-y-3">
-                  {pedidosPendentes.length === 0 ? (
+                  {!lancamentos || lancamentos.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
-                      Nenhum pedido com pagamento pendente
+                      Nenhum lançamento encontrado
                     </p>
                   ) : (
-                    pedidosPendentes
-                      .sort((a, b) => new Date(a.data_hora_entrega).getTime() - new Date(b.data_hora_entrega).getTime())
-                      .map(pedido => (
-                      <div key={pedido.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                        <div className="space-y-1">
-                          <p className="font-medium">{pedido.cliente?.nome}</p>
+                    lancamentos.map(lancamento => (
+                      <div key={lancamento.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            {lancamento.tipo === 'receita' ? (
+                              <ArrowUpCircle className="h-4 w-4 text-success" />
+                            ) : (
+                              <ArrowDownCircle className="h-4 w-4 text-destructive" />
+                            )}
+                            <p className="font-medium">{lancamento.descricao}</p>
+                            <Badge variant="outline" className={
+                              lancamento.status === 'realizado' 
+                                ? 'bg-success/20 text-success-foreground' 
+                                : lancamento.status === 'cancelado'
+                                ? 'bg-destructive/20 text-destructive-foreground'
+                                : 'bg-warning/20 text-warning-foreground'
+                            }>
+                              {lancamento.status}
+                            </Badge>
+                            {lancamento.recorrente && (
+                              <Badge variant="outline" className="bg-info/20 text-info-foreground">
+                                Recorrente
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
-                            {format(new Date(pedido.data_hora_entrega), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            {lancamento.categoria?.nome} • {formatDate(lancamento.data_lancamento)}
+                            {lancamento.data_pagamento && ` • Pago em ${formatDate(lancamento.data_pagamento)}`}
                           </p>
+                          {lancamento.observacoes && (
+                            <p className="text-xs text-muted-foreground">{lancamento.observacoes}</p>
+                          )}
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-warning">{formatCurrency(pedido.valor_total)}</p>
-                          <Badge variant="outline" className="bg-warning/20 text-warning-foreground">
-                            {pedido.status === 'executado' ? 'Executado' : 'Pendente'}
-                          </Badge>
+                        <div className="text-right flex items-center gap-4">
+                          <div>
+                            <p className={`font-semibold ${lancamento.tipo === 'receita' ? 'text-success' : 'text-destructive'}`}>
+                              {lancamento.tipo === 'receita' ? '+' : '-'}{formatCurrency(lancamento.valor)}
+                            </p>
+                            {lancamento.forma_pagamento && (
+                              <p className="text-xs text-muted-foreground">{lancamento.forma_pagamento}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(lancamento)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openDeleteDialog(lancamento.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -383,137 +625,172 @@ export default function Financeiro() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="pagos">
+        {/* Fluxo de Caixa */}
+        <TabsContent value="fluxo_caixa" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-success" />
-                Pedidos Pagos
+                <Calendar className="h-5 w-5" />
+                Fluxo de Caixa
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-3">
-                  {pedidosPagos.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhum pedido pago
-                    </p>
-                  ) : (
-                    pedidosPagos
-                      .sort((a, b) => new Date(b.paid_at || b.created_at).getTime() - new Date(a.paid_at || a.created_at).getTime())
-                      .map(pedido => (
-                      <div key={pedido.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                        <div className="space-y-1">
-                          <p className="font-medium">{pedido.cliente?.nome}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(pedido.data_hora_entrega), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-success">{formatCurrency(pedido.valor_total)}</p>
-                          <Badge variant="outline" className="bg-success/20 text-success-foreground">
-                            Pago
-                          </Badge>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
+              <div className="h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={fluxoCaixa}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="data" 
+                      className="text-xs"
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      tickFormatter={(value) => format(parseISO(value), 'dd/MM', { locale: ptBR })}
+                    />
+                    <YAxis 
+                      className="text-xs"
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      tickFormatter={(value) => `R$${(value / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="saldo" 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth={2}
+                      name="Saldo"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="saldo_realizado" 
+                      stroke="hsl(var(--success))" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      name="Saldo Realizado"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="comNota">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-5 w-5 text-info" />
-                Pedidos com Nota Fiscal
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-3">
-                  {pedidosComNota.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhum pedido com nota fiscal
-                    </p>
-                  ) : (
-                    pedidosComNota
-                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map(pedido => (
-                      <div key={pedido.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                        <div className="space-y-1">
-                          <p className="font-medium">{pedido.cliente?.nome}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(pedido.data_hora_entrega), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold">{formatCurrency(pedido.valor_total)}</p>
-                          <Badge variant="outline" className={
-                            pedido.status_pagamento === 'pago' 
-                              ? 'bg-success/20 text-success-foreground' 
-                              : 'bg-warning/20 text-warning-foreground'
-                          }>
-                            {pedido.status_pagamento === 'pago' ? 'Pago' : 'Pendente'}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))
-                  )}
+        {/* Balanço */}
+        <TabsContent value="balanco" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <PieChart className="h-5 w-5 text-success" />
+                  Receitas por Categoria
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={balanco?.receitasPorCategoria || []}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ categoria, porcentagem }) => `${categoria} (${porcentagem.toFixed(1)}%)`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="valor"
+                      >
+                        {(balanco?.receitasPorCategoria || []).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
                 </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
 
-        <TabsContent value="semNota">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <PieChart className="h-5 w-5 text-destructive" />
+                  Despesas por Categoria
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={balanco?.despesasPorCategoria || []}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ categoria, porcentagem }) => `${categoria} (${porcentagem.toFixed(1)}%)`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="valor"
+                      >
+                        {(balanco?.despesasPorCategoria || []).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-muted-foreground" />
-                Pedidos sem Nota Fiscal
-              </CardTitle>
+              <CardTitle className="text-base">Resumo do Período</CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-3">
-                  {pedidosSemNota.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhum pedido sem nota fiscal
-                    </p>
-                  ) : (
-                    pedidosSemNota
-                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map(pedido => (
-                      <div key={pedido.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                        <div className="space-y-1">
-                          <p className="font-medium">{pedido.cliente?.nome}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(pedido.data_hora_entrega), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold">{formatCurrency(pedido.valor_total)}</p>
-                          <Badge variant="outline" className={
-                            pedido.status_pagamento === 'pago' 
-                              ? 'bg-success/20 text-success-foreground' 
-                              : 'bg-warning/20 text-warning-foreground'
-                          }>
-                            {pedido.status_pagamento === 'pago' ? 'Pago' : 'Pendente'}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))
-                  )}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Total Receitas</p>
+                  <p className="text-2xl font-bold text-success">{formatCurrency(balanco?.totalReceitas || 0)}</p>
                 </div>
-              </ScrollArea>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Total Despesas</p>
+                  <p className="text-2xl font-bold text-destructive">{formatCurrency(balanco?.totalDespesas || 0)}</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Lucro/Prejuízo</p>
+                  <p className={`text-2xl font-bold ${(balanco?.lucro || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    {formatCurrency(balanco?.lucro || 0)}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialogs */}
+      <LancamentoFormDialog
+        open={lancamentoDialogOpen}
+        onOpenChange={setLancamentoDialogOpen}
+        onSubmit={editingLancamento ? handleUpdateLancamento : handleCreateLancamento}
+        lancamento={editingLancamento}
+        isLoading={createLancamento.isPending || updateLancamento.isPending}
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteLancamento}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
