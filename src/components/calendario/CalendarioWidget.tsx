@@ -205,7 +205,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
     }
   }, [currentDate, viewMode]);
  
-  // Group pedidos by date
+  // Group pedidos by date and sort by time
   const pedidosByDate = useMemo(() => {
     const grouped: Record<string, Pedido[]> = {};
     pedidos?.forEach(pedido => {
@@ -215,6 +215,14 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       }
       grouped[dateKey].push(pedido);
     });
+    
+    // Sort pedidos in each day by time
+    Object.keys(grouped).forEach(dateKey => {
+      grouped[dateKey].sort((a, b) =>
+        new Date(a.data_hora_entrega).getTime() - new Date(b.data_hora_entrega).getTime()
+      );
+    });
+    
     return grouped;
   }, [pedidos]);
  
@@ -250,11 +258,10 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
     const dateKey = format(day, 'yyyy-MM-dd');
     const dayPedidos = pedidosByDate[dateKey] || [];
     
+    // Sempre abre o diálogo de detalhes se houver pedidos
+    // Isso permite que o usuário escolha entre criar novo ou editar existente
     if (dayPedidos.length === 0) {
       setSelectedPedido(null);
-      setFormDialogOpen(true);
-    } else if (dayPedidos.length === 1) {
-      setSelectedPedido(dayPedidos[0]);
       setFormDialogOpen(true);
     } else {
       setDialogOpen(true);

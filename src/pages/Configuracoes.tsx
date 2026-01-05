@@ -40,7 +40,7 @@ import {
 import { useConfiguracaoEmpresa, useUpdateConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
 import { useUsers, useUpdateUserRole, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCategoriasFinanceiras, useCreateCategoriaFinanceira, useUpdateCategoriaFinanceira, useDeleteCategoriaFinanceira, useCreateLancamento } from '@/hooks/useFinanceiro';
+import { useCategoriasFinanceiras, useCreateCategoriaFinanceira, useUpdateCategoriaFinanceira, useDeleteCategoriaFinanceira, useCreateLancamento, useLancamentosFinanceiros } from '@/hooks/useFinanceiro';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -122,6 +122,7 @@ export default function Configuracoes() {
   const { data: config, isLoading } = useConfiguracaoEmpresa();
   const { data: users, isLoading: loadingUsers } = useUsers();
   const { data: categoriasFinanceiras, isLoading: loadingCategorias } = useCategoriasFinanceiras();
+  const { data: lancamentosFinanceiros, isLoading: loadingLancamentos } = useLancamentosFinanceiros();
   const updateConfig = useUpdateConfiguracaoEmpresa();
   const updateUserRole = useUpdateUserRole();
   const createUser = useCreateUser();
@@ -425,6 +426,60 @@ export default function Configuracoes() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
     XLSX.writeFile(wb, 'modelo_lancamentos_financeiros.xlsx');
+  };
+
+  // Função para exportar lançamentos
+  const handleExportLancamentos = () => {
+    if (!lancamentosFinanceiros || lancamentosFinanceiros.length === 0) {
+      toast.error('Não há lançamentos para exportar');
+      return;
+    }
+
+    try {
+      // Formatar dados para exportação no mesmo formato do modelo de importação
+      const exportData = lancamentosFinanceiros.map(lancamento => ({
+        'Data': lancamento.data_lancamento.split('T')[0],
+        'Tipo': lancamento.tipo === 'receita' ? 'receita' : 'despesa',
+        'Categoria': lancamento.categoria?.nome || '',
+        'Descrição': lancamento.descricao || '',
+        'Valor': lancamento.valor,
+        'Status': lancamento.status === 'realizado' ? 'realizado' : 'pendente',
+        'Forma de Pagamento': lancamento.forma_pagamento || '',
+        'Observações': lancamento.observacoes || ''
+      }));
+
+      // Criar worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Definir largura das colunas
+      ws['!cols'] = [
+        { wch: 15 }, // Data
+        { wch: 10 }, // Tipo
+        { wch: 20 }, // Categoria
+        { wch: 30 }, // Descrição
+        { wch: 15 }, // Valor
+        { wch: 12 }, // Status
+        { wch: 20 }, // Forma de Pagamento
+        { wch: 30 }, // Observações
+      ];
+
+      // Criar workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Lançamentos');
+
+      // Gerar nome do arquivo com data atual
+      const dataAtual = new Date();
+      const dataFormatada = dataAtual.toISOString().split('T')[0];
+      const nomeArquivo = `lancamentos_financeiros_${dataFormatada}.xlsx`;
+
+      // Baixar arquivo
+      XLSX.writeFile(wb, nomeArquivo);
+      
+      toast.success(`Exportação concluída! ${exportData.length} lançamentos exportados.`);
+    } catch (error) {
+      console.error('Erro ao exportar lançamentos:', error);
+      toast.error('Erro ao exportar lançamentos. Tente novamente.');
+    }
   };
 
   // Função para processar upload do arquivo
@@ -1313,21 +1368,40 @@ export default function Configuracoes() {
                   </Button>
                 </div>
 
-                {/* Download do modelo */}
-                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
-                  <div>
-                    <h4 className="font-medium mb-1">Modelo de Planilha</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Baixe o modelo para ver a estrutura de dados necessária
-                    </p>
+                {/* Download do modelo e Exportar */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                    <div>
+                      <h4 className="font-medium mb-1">Modelo de Planilha</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Baixe o modelo para ver a estrutura de dados necessária
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownloadModelo()}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Baixar Modelo
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleDownloadModelo()}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Baixar Modelo
-                  </Button>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                    <div>
+                      <h4 className="font-medium mb-1">Exportar Lançamentos</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Exporte todos os lançamentos para um arquivo Excel
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={handleExportLancamentos}
+                      disabled={!lancamentosFinanceiros || lancamentosFinanceiros.length === 0 || loadingLancamentos}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Exportar
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Upload do arquivo */}
