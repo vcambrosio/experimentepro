@@ -15,10 +15,10 @@ import {
   isValid
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { 
-  DollarSign, 
-  Clock, 
-  CheckCircle, 
+import {
+  DollarSign,
+  Clock,
+  CheckCircle,
   FileText,
   TrendingUp,
   AlertCircle,
@@ -30,7 +30,8 @@ import {
   Filter,
   Trash2,
   Edit,
-  PieChart
+  PieChart,
+  Store
 } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useAuth } from '@/contexts/AuthContext';
@@ -89,6 +90,7 @@ import type { LancamentoFinanceiro, TipoFinanceiro, StatusLancamento } from '@/t
 import { toast } from 'sonner';
 
 type ViewPeriod = 'week' | 'month' | 'year';
+type VendaLojaPeriod = 'all' | 'year' | 'month';
 
 const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
@@ -104,6 +106,7 @@ export default function Financeiro() {
   
   // Filtros
   const [viewPeriod, setViewPeriod] = useState<ViewPeriod>('month');
+  const [vendaLojaPeriod, setVendaLojaPeriod] = useState<VendaLojaPeriod>('all');
   const [filtroTipo, setFiltroTipo] = useState<TipoFinanceiro | 'todos'>('todos');
   const [filtroStatus, setFiltroStatus] = useState<StatusLancamento | 'todos'>('todos');
   const [dataInicio, setDataInicio] = useState('');
@@ -213,6 +216,43 @@ export default function Financeiro() {
   // Calculate totals from pedidos
   const totalPendentePedidos = pedidosPendentes.reduce((acc, p) => acc + (p.valor_total || 0), 0);
   const totalPagoPedidos = pedidosPagos.reduce((acc, p) => acc + (p.valor_total || 0), 0);
+
+  // Filter vendas loja (same logic as VendaLoja page)
+  const vendasLoja = useMemo(() =>
+    pedidos?.filter(pedido => {
+      const dataCriacao = new Date(pedido.created_at);
+      const dataEntrega = new Date(pedido.data_hora_entrega);
+      return (
+        dataCriacao.toDateString() === dataEntrega.toDateString() &&
+        pedido.status === 'executado'
+      );
+    }) || [],
+    [pedidos]
+  );
+
+  // Filter vendas loja by period
+  const vendasLojaByPeriod = useMemo(() => {
+    const now = new Date();
+    return vendasLoja.filter(pedido => {
+      const dataCriacao = new Date(pedido.created_at);
+      
+      if (vendaLojaPeriod === 'all') {
+        return true;
+      } else if (vendaLojaPeriod === 'year') {
+        const yearStart = startOfYear(now);
+        const yearEnd = endOfYear(now);
+        return isWithinInterval(dataCriacao, { start: yearStart, end: yearEnd });
+      } else if (vendaLojaPeriod === 'month') {
+        const monthStart = startOfMonth(now);
+        const monthEnd = endOfMonth(now);
+        return isWithinInterval(dataCriacao, { start: monthStart, end: monthEnd });
+      }
+      return true;
+    });
+  }, [vendasLoja, vendaLojaPeriod]);
+
+  const vendasLojaPendentes = vendasLojaByPeriod.filter(p => p.status_pagamento === 'pendente');
+  const totalPendenteVendaLoja = vendasLojaPendentes.reduce((acc, p) => acc + (p.valor_total || 0), 0);
 
   // Generate chart data based on period
   const chartData = useMemo(() => {
@@ -325,8 +365,8 @@ export default function Financeiro() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
-        <div className="grid gap-4 md:grid-cols-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32" />)}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-32" />)}
         </div>
         <Skeleton className="h-96" />
       </div>
@@ -353,7 +393,7 @@ export default function Financeiro() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="border-l-4 border-l-success">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Receitas</CardTitle>
@@ -403,6 +443,31 @@ export default function Financeiro() {
           <CardContent>
             <div className="text-2xl font-bold text-warning">{formatCurrency(totalPendentePedidos)}</div>
             <p className="text-xs text-muted-foreground mt-1">{pedidosPendentes.length} pedidos de evento ou cesta pendentes</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-info">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">A Receber (Venda Loja)</CardTitle>
+            <Store className="h-4 w-4 text-info" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-info">{formatCurrency(totalPendenteVendaLoja)}</div>
+            <p className="text-xs text-muted-foreground mt-1">{vendasLojaPendentes.length} vendas de loja pendentes</p>
+            <Select
+              value={vendaLojaPeriod}
+              onValueChange={(v: VendaLojaPeriod) => setVendaLojaPeriod(v)}
+              className="mt-2"
+            >
+              <SelectTrigger className="h-7 text-xs w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todo o tempo</SelectItem>
+                <SelectItem value="year">Último ano</SelectItem>
+                <SelectItem value="month">Último mês</SelectItem>
+              </SelectContent>
+            </Select>
           </CardContent>
         </Card>
       </div>

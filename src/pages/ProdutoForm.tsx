@@ -336,15 +336,12 @@ export default function ProdutoForm() {
                   <FormItem>
                     <FormLabel>Descrição Padrão</FormLabel>
                     <FormControl>
-                      <Textarea 
+                      <Textarea
                         placeholder="Descrição do produto (pode ser editada em cada pedido de evento ou cesta)"
                         className="min-h-[100px]"
-                        {...field} 
+                        {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Esta descrição serve como modelo inicial e pode ser personalizada em cada pedido de evento ou cesta.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
