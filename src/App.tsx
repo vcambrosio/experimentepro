@@ -15,6 +15,7 @@ const Login = lazy(() => import("./pages/Login"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Pedidos = lazy(() => import("./pages/Pedidos"));
+const VendaLoja = lazy(() => import("./pages/VendaLoja"));
 const Orcamentos = lazy(() => import("./pages/Orcamentos"));
 const Clientes = lazy(() => import("./pages/Clientes"));
 const ClienteForm = lazy(() => import("./pages/ClienteForm"));
@@ -61,6 +62,11 @@ const App = () => (
               <Route path="/pedidos" element={
                 <ProtectedRoute>
                   <AppLayout><Pedidos /></AppLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/venda-loja" element={
+                <ProtectedRoute>
+                  <AppLayout><VendaLoja /></AppLayout>
                 </ProtectedRoute>
               } />
               <Route path="/orcamentos" element={

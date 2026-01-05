@@ -195,7 +195,7 @@ export function PedidoPDF({
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.logo}>{empresaNome}</Text>
-          <Text style={styles.pedidoNumero}>PEDIDO</Text>
+          <Text style={styles.pedidoNumero}>PEDIDO DE EVENTO OU CESTA</Text>
           <Text style={styles.dateTime}>
             {format(dataEntrega, "dd/MM/yyyy 'às' HH:mm")}
           </Text>
@@ -219,7 +219,7 @@ export function PedidoPDF({
 
         {/* Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Itens do Pedido</Text>
+          <Text style={styles.sectionTitle}>Itens do Pedido de Evento ou Cesta</Text>
           
           {itens && itens.length > 0 ? itens.map((item, index) => (
             <View key={index} style={styles.itemRow}>
@@ -249,7 +249,7 @@ export function PedidoPDF({
 
         {/* Status */}
         <View style={styles.statusSection}>
-          <Text style={styles.statusLabel}>Status do Pedido</Text>
+          <Text style={styles.statusLabel}>Status do Pedido de Evento ou Cesta</Text>
           <Text style={styles.statusValue}>{getStatusLabel(status)}</Text>
         </View>
 

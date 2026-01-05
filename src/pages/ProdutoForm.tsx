@@ -337,13 +337,13 @@ export default function ProdutoForm() {
                     <FormLabel>Descrição Padrão</FormLabel>
                     <FormControl>
                       <Textarea 
-                        placeholder="Descrição do produto (pode ser editada em cada pedido)" 
+                        placeholder="Descrição do produto (pode ser editada em cada pedido de evento ou cesta)"
                         className="min-h-[100px]"
                         {...field} 
                       />
                     </FormControl>
                     <FormDescription>
-                      Esta descrição serve como modelo inicial e pode ser personalizada em cada pedido.
+                      Esta descrição serve como modelo inicial e pode ser personalizada em cada pedido de evento ou cesta.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -463,8 +463,8 @@ export default function ProdutoForm() {
                           </div>
                           <p className="text-sm text-muted-foreground">
                             {item.tipo_calculo === 'multiplo'
-                              ? `${item.quantidade_por_unidade}x por unidade (multiplicado pela quantidade do pedido)`
-                              : `${item.quantidade_por_unidade}x fixo (não multiplica pela quantidade do pedido)`
+                              ? `${item.quantidade_por_unidade}x por unidade (multiplicado pela quantidade do pedido de evento ou cesta)`
+                              : `${item.quantidade_por_unidade}x fixo (não multiplica pela quantidade do pedido de evento ou cesta)`
                             }
                           </p>
                         </div>
@@ -621,7 +621,7 @@ export default function ProdutoForm() {
                   <SelectItem value="multiplo">
                     <div className="flex flex-col">
                       <span className="font-medium">Múltiplo</span>
-                      <span className="text-xs text-muted-foreground">Multiplica pela quantidade do pedido</span>
+                      <span className="text-xs text-muted-foreground">Multiplica pela quantidade do pedido de evento ou cesta</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="unitario">

@@ -12,7 +12,12 @@ export function usePedidos() {
         .select(`
           *,
           cliente:clientes(*),
-          setor:setores_cliente(*)
+          setor:setores_cliente(*),
+          itens:itens_pedido(
+            *,
+            produto:produtos(*),
+            categoria:categorias(*)
+          )
         `)
         .order('data_hora_entrega', { ascending: false });
       
@@ -57,7 +62,12 @@ export function usePedidosByDateRange(startDate: string, endDate: string) {
         .select(`
           *,
           cliente:clientes(*),
-          setor:setores_cliente(*)
+          setor:setores_cliente(*),
+          itens:itens_pedido(
+            *,
+            produto:produtos(*),
+            categoria:categorias(*)
+          )
         `)
         .gte('data_hora_entrega', startDate)
         .lte('data_hora_entrega', endDate)

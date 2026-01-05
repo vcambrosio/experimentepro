@@ -5,6 +5,7 @@ import {
   FolderOpen,
   FileText,
   ShoppingCart,
+  Store,
   Settings,
   LogOut,
   TrendingUp,
@@ -32,7 +33,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 const menuItems = [
   { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { title: 'Orçamentos', icon: FileText, path: '/orcamentos' },
-  { title: 'Pedidos', icon: ShoppingCart, path: '/pedidos' },
+  { title: 'Pedidos de Evento ou Cesta', icon: ShoppingCart, path: '/pedidos' },
+  { title: 'Venda Loja', icon: Store, path: '/venda-loja' },
   { title: 'Clientes', icon: Users, path: '/clientes' },
   { title: 'Produtos', icon: Package, path: '/produtos' },
   { title: 'Categorias', icon: FolderOpen, path: '/categorias' },

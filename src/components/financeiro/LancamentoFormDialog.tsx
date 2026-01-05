@@ -34,6 +34,7 @@ interface LancamentoFormDialogProps {
     };
   };
   isLoading?: boolean;
+  isVendaLoja?: boolean;
 }
 
 export function LancamentoFormDialog({
@@ -43,6 +44,7 @@ export function LancamentoFormDialog({
   lancamento,
   pedidoParaLancamento,
   isLoading = false,
+  isVendaLoja = false,
 }: LancamentoFormDialogProps) {
   const [tipo, setTipo] = useState<TipoFinanceiro>('receita');
   const [categoriaId, setCategoriaId] = useState('');
@@ -78,15 +80,44 @@ export function LancamentoFormDialog({
         // Modo de criação a partir de um pedido
         setTipo('receita');
         setCategoriaId('');
-        setDescricao(`Receita de Pedido #${pedidoParaLancamento.id} - ${pedidoParaLancamento.cliente?.nome || 'Cliente'}`);
-        setValor(pedidoParaLancamento.valor_total.toString());
-        setDataLancamento(new Date().toISOString().split('T')[0]);
-        setDataPagamento(new Date().toISOString().split('T')[0]);
-        setStatus('realizado');
-        setFormaPagamento('');
-        setObservacoes(`Referente ao pedido #${pedidoParaLancamento.id}`);
-        setRecorrente(false);
-        setRecorrenciaPeriodo('mensal');
+        
+        if (isVendaLoja) {
+          // Venda de Loja: busca categoria específica
+          const categoriaVendaLoja = categorias?.find(c => c.nome === 'Receita Venda Loja');
+          if (categoriaVendaLoja) {
+            setCategoriaId(categoriaVendaLoja.id);
+          }
+          
+          const now = new Date();
+          const dataFormatada = now.toISOString().replace(/[-:T.]/g, '').slice(0, 12); // YYYYMMDDHHMM
+          setDescricao(`Receita de Venda Loja - ${dataFormatada} - ${pedidoParaLancamento.cliente?.nome || 'Cliente'}`);
+          setValor(formatCurrency(pedidoParaLancamento.valor_total));
+          setDataLancamento(now.toISOString().split('T')[0]);
+          setDataPagamento(now.toISOString().split('T')[0]);
+          setStatus('realizado');
+          setFormaPagamento('');
+          setObservacoes(''); // Observações em branco para venda de loja
+          setRecorrente(false);
+          setRecorrenciaPeriodo('mensal');
+        } else {
+          // Pedido de Evento ou Cesta: busca categoria específica
+          const categoriaEventoCesta = categorias?.find(c => c.nome === 'Receita Evento ou Cesta');
+          if (categoriaEventoCesta) {
+            setCategoriaId(categoriaEventoCesta.id);
+          }
+          
+          const now = new Date();
+          const dataFormatada = now.toISOString().replace(/[-:T.]/g, '').slice(0, 12); // YYYYMMDDHHMM
+          setDescricao(`Receita de Pedido de Evento ou Cesta - ${dataFormatada} - ${pedidoParaLancamento.cliente?.nome || 'Cliente'}`);
+          setValor(formatCurrency(pedidoParaLancamento.valor_total));
+          setDataLancamento(now.toISOString().split('T')[0]);
+          setDataPagamento(now.toISOString().split('T')[0]);
+          setStatus('realizado');
+          setFormaPagamento('');
+          setObservacoes(''); // Observações em branco para o usuário preencher opcionalmente
+          setRecorrente(false);
+          setRecorrenciaPeriodo('mensal');
+        }
       } else {
         // Modo de criação normal
         setTipo('receita');
@@ -102,7 +133,28 @@ export function LancamentoFormDialog({
         setRecorrenciaPeriodo('mensal');
       }
     }
-  }, [open, lancamento, pedidoParaLancamento]);
+  }, [open, lancamento, pedidoParaLancamento, isVendaLoja, categorias]);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+  };
+
+  const parseCurrency = (value: string) => {
+    // Remove caracteres não numéricos exceto vírgula e ponto
+    const cleaned = value.replace(/[^\d,.-]/g, '');
+    // Converte vírgula para ponto e para float
+    return parseFloat(cleaned.replace(',', '.')) || 0;
+  };
+
+  const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Remove caracteres não numéricos exceto vírgula e ponto
+    const cleaned = value.replace(/[^\d,.-]/g, '');
+    setValor(cleaned);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +167,7 @@ export function LancamentoFormDialog({
       tipo,
       categoria_id: categoriaId,
       descricao,
-      valor: parseFloat(valor),
+      valor: parseCurrency(valor),
       data_lancamento: dataLancamento,
       data_pagamento: dataPagamento || undefined,
       status,
@@ -133,7 +185,7 @@ export function LancamentoFormDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {lancamento ? 'Editar Lançamento' : pedidoParaLancamento ? 'Registrar Pagamento de Pedido' : 'Novo Lançamento'}
+            {lancamento ? 'Editar Lançamento' : pedidoParaLancamento ? 'Registrar Pagamento' : 'Novo Lançamento'}
           </DialogTitle>
         </DialogHeader>
 
@@ -185,11 +237,11 @@ export function LancamentoFormDialog({
               <Label htmlFor="valor">Valor (R$) *</Label>
               <Input
                 id="valor"
-                type="number"
+                type="text"
                 step="0.01"
                 min="0"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
+                value={pedidoParaLancamento ? formatCurrency(parseCurrency(valor)) : valor}
+                onChange={handleValorChange}
                 placeholder="0,00"
                 required
                 disabled={!!pedidoParaLancamento}
@@ -244,32 +296,6 @@ export function LancamentoFormDialog({
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="recorrente"
-              checked={recorrente}
-              onCheckedChange={setRecorrente}
-              disabled={!!pedidoParaLancamento}
-            />
-            <Label htmlFor="recorrente">Lançamento Recorrente</Label>
-          </div>
-
-          {recorrente && (
-            <div className="space-y-2">
-              <Label htmlFor="recorrencia_periodo">Período de Recorrência</Label>
-              <Select value={recorrenciaPeriodo} onValueChange={(value: 'mensal' | 'trimestral' | 'semestral' | 'anual') => setRecorrenciaPeriodo(value)}>
-                <SelectTrigger id="recorrencia_periodo">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mensal">Mensal</SelectItem>
-                  <SelectItem value="trimestral">Trimestral</SelectItem>
-                  <SelectItem value="semestral">Semestral</SelectItem>
-                  <SelectItem value="anual">Anual</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           <div className="space-y-2">
             <Label htmlFor="observacoes">Observações</Label>

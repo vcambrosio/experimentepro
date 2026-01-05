@@ -346,7 +346,7 @@ export default function Orcamentos() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleConvert(orcamento)}
-                          title="Converter em Pedido"
+                          title="Converter em Pedido de Evento ou Cesta"
                           className="text-success hover:text-success"
                         >
                           <ArrowRight className="h-4 w-4" />
@@ -419,9 +419,9 @@ export default function Orcamentos() {
       <AlertDialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Converter em Pedido</AlertDialogTitle>
+            <AlertDialogTitle>Converter em Pedido de Evento ou Cesta</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja converter o orçamento {selectedOrcamento?.numero_orcamento} em um pedido? O orçamento será marcado como aprovado.
+              Deseja converter o orçamento {selectedOrcamento?.numero_orcamento} em um pedido de evento ou cesta? O orçamento será marcado como aprovado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

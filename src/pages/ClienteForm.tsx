@@ -137,6 +137,20 @@ export default function ClienteForm() {
         navigate('/orcamentos');
         return;
       }
+
+      // Se o parâmetro returnTo for 'pedido', salva o ID do cliente criado e redireciona para pedidos
+      if (returnTo === 'pedido') {
+        localStorage.setItem('newClienteId', clienteId);
+        navigate('/pedidos');
+        return;
+      }
+
+      // Se o parâmetro returnTo for 'venda-loja', salva o ID do cliente criado e redireciona para venda loja
+      if (returnTo === 'venda-loja') {
+        localStorage.setItem('newClienteId', clienteId);
+        navigate('/venda-loja');
+        return;
+      }
     }
     navigate('/clientes');
   };
@@ -267,18 +281,19 @@ export default function ClienteForm() {
             </CardContent>
           </Card>
 
-          {/* Setores Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                Setores da Empresa
-              </CardTitle>
-              <CardDescription>
-                Adicione setores para organizar pedidos por departamento
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {/* Setores Card - apenas para Pessoa Jurídica */}
+          {form.watch('tipo_pessoa') === 'juridica' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Setores da Empresa
+                </CardTitle>
+                <CardDescription>
+                  Adicione setores para organizar pedidos de evento ou cesta por departamento
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
               {/* Add new setor */}
               <div className="flex gap-2">
                 <Input
@@ -367,7 +382,8 @@ export default function ClienteForm() {
                 </p>
               )}
             </CardContent>
-          </Card>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

@@ -566,7 +566,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
               </div>
               <Button variant="outline" size="sm" onClick={handleCreateFromDialog}>
                 <Plus className="h-4 w-4 mr-2" />
-                Novo Pedido
+                Novo Pedido de Evento ou Cesta
               </Button>
             </DialogTitle>
           </DialogHeader>
@@ -646,10 +646,10 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Move className="h-5 w-5 text-primary" />
-              Reagendar Pedido
+              Reagendar Pedido de Evento ou Cesta
             </DialogTitle>
             <DialogDescription>
-              Confirme a nova data e horário para o pedido de <strong>{rescheduleDialog.pedido?.cliente?.nome}</strong>
+              Confirme a nova data e horário para o pedido de evento ou cesta de <strong>{rescheduleDialog.pedido?.cliente?.nome}</strong>
             </DialogDescription>
           </DialogHeader>
           

@@ -35,7 +35,7 @@ export function useThermalPrint() {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Pedido - ${format(new Date(pedido.data_hora_entrega), 'dd/MM/yyyy HH:mm')}</title>
+  <title>Pedido de Evento ou Cesta - ${format(new Date(pedido.data_hora_entrega), 'dd/MM/yyyy HH:mm')}</title>
   <style>
     * {
       margin: 0;
@@ -181,7 +181,7 @@ export function useThermalPrint() {
   <div class="content-wrapper">
   <div class="header">
     <div class="logo">${empresaNome || 'Experimente Pro'}</div>
-    <div class="pedido-num">PEDIDO</div>
+    <div class="pedido-num">PEDIDO DE EVENTO OU CESTA</div>
     <div class="datetime">${format(new Date(pedido.data_hora_entrega), "dd/MM/yyyy 'às' HH:mm")}</div>
   </div>
 
@@ -197,7 +197,7 @@ export function useThermalPrint() {
   <div class="divider"></div>
 
   <div class="section">
-    <div class="section-title">Itens do Pedido</div>
+    <div class="section-title">Itens do Pedido de Evento ou Cesta</div>
     ${(pedido.itens || []).map(item => `
       <div class="item">
         <div class="item-header">
@@ -213,7 +213,7 @@ export function useThermalPrint() {
   <div class="divider-double"></div>
    
   <div class="status-box">
-    <div class="status-label">Status do Pedido</div>
+    <div class="status-label">Status do Pedido de Evento ou Cesta</div>
     <div class="status-value">${getStatusLabel(pedido.status)}</div>
   </div>
 </body>

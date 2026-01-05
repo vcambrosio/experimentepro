@@ -142,7 +142,7 @@ export function ChecklistPDF({
           <Text style={styles.title}>CHECKLIST DE PRODUÇÃO</Text>
           <Text style={styles.subtitle}>{empresaNome}</Text>
           <Text style={styles.dateInfo}>
-            Pedido para: {format(new Date(pedido.data_hora_entrega), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
+            Pedido de Evento ou Cesta para: {format(new Date(pedido.data_hora_entrega), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
           </Text>
         </View>
 

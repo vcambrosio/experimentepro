@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Calendar, Filter, CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Store, Filter, CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react';
 import { usePedidos, useDeletePedido, useUpdatePedido } from '@/hooks/usePedidos';
 import { useCreateLancamento } from '@/hooks/useFinanceiro';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,7 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { PedidoFormDialog } from '@/components/pedidos/PedidoFormDialog';
+import { VendaLojaFormDialog } from '@/components/vendas-loja/VendaLojaFormDialog';
 import { PedidoViewDialog } from '@/components/pedidos/PedidoViewDialog';
 import { LancamentoFormDialog } from '@/components/financeiro/LancamentoFormDialog';
 
@@ -80,7 +80,7 @@ const getPagamentoBadgeClass = (status: StatusPagamento) => {
   }
 };
 
-export default function Pedidos() {
+export default function VendaLoja() {
   const { isAdmin } = useAuth();
   const { data: pedidos, isLoading, error } = usePedidos();
   const deletePedido = useDeletePedido();
@@ -111,7 +111,18 @@ export default function Pedidos() {
     }
   }, []);
 
-  const filteredPedidos = pedidos?.filter(pedido => {
+  // Filtra apenas vendas de loja (pedidos com data de entrega igual à data de criação ou status executado)
+  const vendasLoja = pedidos?.filter(pedido => {
+    const dataCriacao = new Date(pedido.created_at);
+    const dataEntrega = new Date(pedido.data_hora_entrega);
+    // Considera como venda de loja se a data de entrega for próxima da data de criação (mesmo dia)
+    return (
+      dataCriacao.toDateString() === dataEntrega.toDateString() &&
+      pedido.status === 'executado'
+    );
+  });
+
+  const filteredPedidos = vendasLoja?.filter(pedido => {
     const matchesSearch = 
       pedido.cliente?.nome?.toLowerCase().includes(search.toLowerCase()) ||
       pedido.id.toLowerCase().includes(search.toLowerCase());
@@ -204,7 +215,7 @@ export default function Pedidos() {
     return (
       <div className="flex items-center justify-center py-24">
         <div className="text-center text-destructive">
-          <p>Erro ao carregar pedidos</p>
+          <p>Erro ao carregar vendas de loja</p>
           <p className="text-sm">{error.message}</p>
         </div>
       </div>
@@ -215,12 +226,12 @@ export default function Pedidos() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Pedidos de Evento ou Cesta</h1>
-          <p className="text-muted-foreground">Gerencie seus pedidos de evento ou cesta de entrega</p>
+          <h1 className="text-2xl font-semibold text-foreground">Venda Loja</h1>
+          <p className="text-muted-foreground">Gerencie as vendas de loja de produtos</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Novo Pedido de Evento ou Cesta
+          Nova Venda de Loja
         </Button>
       </div>
 
@@ -267,10 +278,10 @@ export default function Pedidos() {
         </div>
       ) : filteredPedidos?.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 border-2 border-dashed rounded-lg">
-          <Calendar className="h-12 w-12 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground">Nenhum pedido de evento ou cesta encontrado</p>
+          <Store className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <p className="text-muted-foreground">Nenhuma venda de loja encontrada</p>
           <Button variant="link" onClick={handleCreate} className="mt-2">
-            Criar primeiro pedido de evento ou cesta
+            Registrar primeira venda de loja
           </Button>
         </div>
       ) : (
@@ -278,9 +289,9 @@ export default function Pedidos() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Data Entrega</TableHead>
+                <TableHead>Data Venda</TableHead>
                 <TableHead>Cliente</TableHead>
-                <TableHead>Setor</TableHead>
+                <TableHead>Produtos</TableHead>
                 <TableHead>Nota Fiscal</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Pagamento</TableHead>
@@ -293,13 +304,13 @@ export default function Pedidos() {
                 <TableRow key={pedido.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <Store className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <div className="font-medium">
-                          {format(new Date(pedido.data_hora_entrega), 'dd/MM/yyyy', { locale: ptBR })}
+                          {format(new Date(pedido.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {format(new Date(pedido.data_hora_entrega), 'HH:mm', { locale: ptBR })}
+                          {format(new Date(pedido.created_at), 'HH:mm', { locale: ptBR })}
                         </div>
                       </div>
                     </div>
@@ -309,10 +320,18 @@ export default function Pedidos() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{pedido.setor?.nome_setor || '-'}</span>
-                      {pedido.setor?.responsavel && (
+                      {pedido.itens && pedido.itens.length > 0 ? (
+                        pedido.itens.slice(0, 3).map((item, index) => (
+                          <span key={index} className="text-sm">
+                            {item.produto?.nome || 'Produto não encontrado'}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                      {pedido.itens && pedido.itens.length > 3 && (
                         <span className="text-xs text-muted-foreground">
-                          Resp: {pedido.setor.responsavel}
+                          +{pedido.itens.length - 3} produtos
                         </span>
                       )}
                     </div>
@@ -417,7 +436,7 @@ export default function Pedidos() {
       )}
 
       {/* Form Dialog */}
-      <PedidoFormDialog
+      <VendaLojaFormDialog
         open={formDialogOpen}
         onOpenChange={(open) => {
           setFormDialogOpen(open);
@@ -442,7 +461,7 @@ export default function Pedidos() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este pedido de evento ou cesta? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir esta venda de loja? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -472,6 +491,7 @@ export default function Pedidos() {
           cliente: pedidoParaLancamento.cliente,
         } : undefined}
         isLoading={createLancamento.isPending || updatePedido.isPending}
+        isVendaLoja={true}
       />
     </div>
   );

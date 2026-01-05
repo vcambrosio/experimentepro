@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2, FileText, UserPlus } from 'lucide-react';
+import { Plus, Trash2, Loader2, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useClientes, useSetoresCliente, useCreateCliente } from '@/hooks/useClientes';
+import { useClientes, useCreateCliente } from '@/hooks/useClientes';
 import { useProdutos } from '@/hooks/useProdutos';
 import { useCreatePedido, useUpdatePedido, usePedido } from '@/hooks/usePedidos';
 import { Pedido, ItemPedido } from '@/types';
@@ -28,14 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { ptBR } from 'date-fns/locale';
 
 interface ItemForm {
   produto_id: string;
@@ -46,15 +37,14 @@ interface ItemForm {
   detalhes: string;
 }
 
-interface PedidoFormDialogProps {
+interface VendaLojaFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pedido: Pedido | null;
-  initialDate?: Date;
   newClienteId?: string | null;
 }
 
-export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newClienteId }: PedidoFormDialogProps) {
+export function VendaLojaFormDialog({ open, onOpenChange, pedido, newClienteId }: VendaLojaFormDialogProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -66,9 +56,6 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
   const createCliente = useCreateCliente();
   
   const [clienteId, setClienteId] = useState('');
-  const [setorId, setSetorId] = useState('');
-  const [dataEntrega, setDataEntrega] = useState<Date | undefined>();
-  const [horaEntrega, setHoraEntrega] = useState('12:00');
   const [emiteNotaFiscal, setEmiteNotaFiscal] = useState(false);
   const [itens, setItens] = useState<ItemForm[]>([]);
   const [novoClienteDialog, setNovoClienteDialog] = useState(false);
@@ -81,7 +68,6 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
   const [novoClienteContato, setNovoClienteContato] = useState('');
   const [criandoCliente, setCriandoCliente] = useState(false);
   
-  const { data: setores } = useSetoresCliente(clienteId);
   const { data: pedidoCompleto } = usePedido(pedido?.id || '');
   
   const isEditing = !!pedido;
@@ -90,10 +76,6 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
     if (open) {
       if (pedido && pedidoCompleto) {
         setClienteId(pedido.cliente_id);
-        setSetorId(pedido.setor_id || '');
-        const entregaDate = new Date(pedido.data_hora_entrega);
-        setDataEntrega(entregaDate);
-        setHoraEntrega(format(entregaDate, 'HH:mm'));
         setEmiteNotaFiscal(pedido.emite_nota_fiscal || false);
         
         if (pedidoCompleto.itens) {
@@ -113,39 +95,33 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
   }, [open, pedido, pedidoCompleto]);
   
   const handleCreateCliente = () => {
-    // Salva o estado atual do formulário de pedido no localStorage
-    const pedidoState = {
+    // Salva o estado atual do formulário de venda no localStorage
+    const vendaState = {
       clienteId,
-      setorId,
-      dataEntrega: dataEntrega?.toISOString(),
-      horaEntrega,
       emiteNotaFiscal,
       itens,
     };
-    localStorage.setItem('pedidoFormState', JSON.stringify(pedidoState));
+    localStorage.setItem('vendaLojaFormState', JSON.stringify(vendaState));
     
     // Navega para a página de criação de cliente com parâmetro de retorno
-    navigate('/clientes/novo?returnTo=pedido');
+    navigate('/clientes/novo?returnTo=venda-loja');
   };
   
   // Carrega o estado salvo ao abrir o diálogo
   useEffect(() => {
     if (open && !isEditing) {
-      const savedState = localStorage.getItem('pedidoFormState');
+      const savedState = localStorage.getItem('vendaLojaFormState');
       if (savedState) {
         try {
           const state = JSON.parse(savedState);
           if (state.clienteId) setClienteId(state.clienteId);
-          if (state.setorId) setSetorId(state.setorId);
-          if (state.dataEntrega) setDataEntrega(new Date(state.dataEntrega));
-          if (state.horaEntrega) setHoraEntrega(state.horaEntrega);
           if (state.emiteNotaFiscal !== undefined) setEmiteNotaFiscal(state.emiteNotaFiscal);
           if (state.itens) setItens(state.itens);
           
           // Limpa o estado salvo após carregar
-          localStorage.removeItem('pedidoFormState');
+          localStorage.removeItem('vendaLojaFormState');
         } catch (error) {
-          console.error('Erro ao carregar estado do pedido:', error);
+          console.error('Erro ao carregar estado da venda:', error);
         }
       }
     }
@@ -199,22 +175,27 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
   
   const resetForm = () => {
     setClienteId('');
-    setSetorId('');
-    setDataEntrega(initialDate || undefined);
-    setHoraEntrega('12:00');
     setEmiteNotaFiscal(false);
     setItens([]);
   };
   
   const addItem = () => {
-    setItens([...itens, {
+    const novoItem = {
       produto_id: '',
       categoria_id: '',
       descricao_customizada: '',
       quantidade: 1,
       valor_unitario: 0,
       detalhes: '',
-    }]);
+    };
+    
+    // Se já houver itens, adiciona o novo item no início da lista
+    if (itens.length > 0) {
+      setItens([novoItem, ...itens]);
+    } else {
+      // Se não houver itens, adiciona normalmente
+      setItens([novoItem]);
+    }
   };
   
   const removeItem = (index: number) => {
@@ -243,17 +224,16 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
   };
   
   const handleSubmit = async () => {
-    if (!clienteId || !dataEntrega || itens.length === 0) return;
+    if (!clienteId || itens.length === 0) return;
   
-    const [hours, minutes] = horaEntrega.split(':').map(Number);
-    const dataHoraEntrega = new Date(dataEntrega);
-    dataHoraEntrega.setHours(hours, minutes, 0, 0);
+    // Para vendas de loja, usamos a data/hora atual como data de entrega
+    const dataHoraEntrega = new Date().toISOString();
   
     const pedidoData = {
       cliente_id: clienteId,
-      setor_id: setorId || null,
-      data_hora_entrega: dataHoraEntrega.toISOString(),
-      status: 'pendente' as const,
+      setor_id: null,
+      data_hora_entrega: dataHoraEntrega,
+      status: 'executado' as const, // Vendas de loja são executadas imediatamente
       status_pagamento: 'pendente' as const,
       valor_total: calcularTotal(),
       emite_nota_fiscal: emiteNotaFiscal,
@@ -299,99 +279,40 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Pedido de Evento ou Cesta' : 'Novo Pedido de Evento ou Cesta'}</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar Venda de Loja' : 'Nova Venda de Loja'}</DialogTitle>
           <DialogDescription>
-            {isEditing ? 'Altere os dados do pedido de evento ou cesta' : 'Preencha os dados para criar um novo pedido de evento ou cesta'}
+            {isEditing ? 'Altere os dados da venda de loja' : 'Preencha os dados para registrar uma nova venda de loja'}
           </DialogDescription>
         </DialogHeader>
   
         <div className="space-y-6 py-4">
-          {/* Cliente e Setor */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="cliente">Cliente *</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Select value={clienteId} onValueChange={setClienteId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientes?.filter(c => c.ativo).map((cliente) => (
-                        <SelectItem key={cliente.id} value={cliente.id}>
-                          {cliente.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={handleCreateCliente}
-                  title="Criar novo cliente"
-                >
-                  <UserPlus className="h-4 w-4" />
-                </Button>
+          {/* Cliente */}
+          <div className="space-y-2">
+            <Label htmlFor="cliente">Cliente *</Label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select value={clienteId} onValueChange={setClienteId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clientes?.filter(c => c.ativo).map((cliente) => (
+                      <SelectItem key={cliente.id} value={cliente.id}>
+                        {cliente.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-  
-            <div className="space-y-2">
-              <Label htmlFor="setor">Setor</Label>
-              <Select value={setorId} onValueChange={setSetorId} disabled={!clienteId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o setor (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {setores?.map((setor) => (
-                    <SelectItem key={setor.id} value={setor.id}>
-                      {setor.nome_setor} {setor.responsavel && `- ${setor.responsavel}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-  
-          {/* Data e Hora de Entrega */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Data de Entrega *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dataEntrega && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dataEntrega ? format(dataEntrega, 'PPP', { locale: ptBR }) : 'Selecione a data'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dataEntrega}
-                    onSelect={setDataEntrega}
-                    locale={ptBR}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-  
-            <div className="space-y-2">
-              <Label htmlFor="hora">Hora de Entrega *</Label>
-              <Input
-                id="hora"
-                type="time"
-                value={horaEntrega}
-                onChange={(e) => setHoraEntrega(e.target.value)}
-              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleCreateCliente}
+                title="Criar novo cliente"
+              >
+                <UserPlus className="h-4 w-4" />
+              </Button>
             </div>
           </div>
   
@@ -400,7 +321,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
             <div className="space-y-0.5">
               <Label className="text-base">Emite Nota Fiscal</Label>
               <p className="text-sm text-muted-foreground">
-                Marque se este pedido de evento ou cesta requer emissão de nota fiscal
+                Marque se esta venda de loja requer emissão de nota fiscal
               </p>
             </div>
             <Switch
@@ -412,7 +333,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
           {/* Itens */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label className="text-base font-medium">Itens do Pedido de Evento ou Cesta</Label>
+              <Label className="text-base font-medium">Itens da Venda de Loja</Label>
               <Button type="button" variant="outline" size="sm" onClick={addItem}>
                 <Plus className="mr-2 h-4 w-4" />
                 Adicionar Item
@@ -477,11 +398,18 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                         <div className="space-y-2">
                           <Label>Valor Unit.</Label>
                           <Input
-                            type="number"
+                            type="text"
                             step="0.01"
                             min="0"
-                            value={item.valor_unitario}
-                            onChange={(e) => updateItem(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
+                            value={formatCurrency(item.valor_unitario)}
+                            onChange={(e) => {
+                              // Remove caracteres não numéricos exceto vírgula e ponto
+                              const value = e.target.value.replace(/[^\d,.-]/g, '');
+                              // Converte vírgula para ponto e para float
+                              const numValue = parseFloat(value.replace(',', '.')) || 0;
+                              updateItem(index, 'valor_unitario', numValue);
+                            }}
+                            placeholder="R$ 0,00"
                           />
                         </div>
                       </div>
@@ -506,7 +434,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                    
                   <div className="flex justify-end p-4 bg-muted rounded-lg sticky bottom-0">
                     <div className="text-right">
-                      <span className="text-muted-foreground">Total do Pedido de Evento ou Cesta: </span>
+                      <span className="text-muted-foreground">Total da Venda de Loja: </span>
                       <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal())}</span>
                     </div>
                   </div>
@@ -522,7 +450,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || !clienteId || !dataEntrega || itens.length === 0}
+            disabled={isSubmitting || !clienteId || itens.length === 0}
           >
             {isSubmitting ? (
               <>
@@ -530,7 +458,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                 Salvando...
               </>
             ) : (
-              isEditing ? 'Salvar Alterações' : 'Criar Pedido de Evento ou Cesta'
+              isEditing ? 'Salvar Alterações' : 'Registrar Venda de Loja'
             )}
           </Button>
         </DialogFooter>
@@ -542,7 +470,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
           <DialogHeader>
             <DialogTitle>Novo Cliente</DialogTitle>
             <DialogDescription>
-              Cadastre um novo cliente para o pedido de evento ou cesta
+              Cadastre um novo cliente para a venda de loja
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -555,7 +483,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                 disabled={criandoCliente}
               />
             </div>
-            
+             
             <div className="space-y-2">
               <Label>Tipo de Pessoa *</Label>
               <Select value={novoClienteTipoPessoa} onValueChange={(value: 'fisica' | 'juridica') => setNovoClienteTipoPessoa(value)} disabled={criandoCliente}>
@@ -568,7 +496,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                 </SelectContent>
               </Select>
             </div>
-            
+             
             <div className="space-y-2">
               <Label>
                 {novoClienteTipoPessoa === 'juridica' ? 'CNPJ' : 'CPF'}
@@ -580,7 +508,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                 disabled={criandoCliente}
               />
             </div>
-            
+             
             <div className="space-y-2">
               <Label>Telefone</Label>
               <Input
@@ -590,7 +518,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                 disabled={criandoCliente}
               />
             </div>
-            
+             
             <div className="space-y-2">
               <Label>Email</Label>
               <Input
@@ -601,7 +529,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                 disabled={criandoCliente}
               />
             </div>
-            
+             
             <div className="space-y-2">
               <Label>Endereço</Label>
               <Input
@@ -611,7 +539,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                 disabled={criandoCliente}
               />
             </div>
-            
+             
             <div className="space-y-2">
               <Label>Contato</Label>
               <Input

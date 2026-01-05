@@ -112,7 +112,7 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle>Detalhes do Pedido</DialogTitle>
+            <DialogTitle>Detalhes do Pedido de Evento ou Cesta</DialogTitle>
             {pedido && (
               <div className="flex items-center gap-2">
                 <Button 
@@ -148,7 +148,7 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
           </div>
         ) : !pedido ? (
           <div className="text-center py-12 text-muted-foreground">
-            Pedido não encontrado
+            Pedido de Evento ou Cesta não encontrado
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -219,7 +219,7 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
               <div>
                 <h3 className="font-medium mb-4 flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  Itens do Pedido
+                  Itens do Pedido de Evento ou Cesta
                 </h3>
                 
                 {pedido.itens && pedido.itens.length > 0 ? (
@@ -283,7 +283,7 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
                   <Separator />
                   <div className="flex justify-end">
                     <div className="text-right p-4 bg-primary/10 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Total do Pedido</p>
+                      <p className="text-sm text-muted-foreground">Total do Pedido de Evento ou Cesta</p>
                       <p className="text-2xl font-semibold text-primary">
                         {formatCurrency(pedido.valor_total)}
                       </p>

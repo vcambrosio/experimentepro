@@ -103,8 +103,8 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
     return (
       <div className="text-center py-8 text-muted-foreground">
         <CheckSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p>Nenhum item de checklist disponível para este pedido.</p>
-        <p className="text-sm">Os produtos deste pedido não possuem checklist configurado.</p>
+        <p>Nenhum item de checklist disponível para este pedido de evento ou cesta.</p>
+        <p className="text-sm">Os produtos deste pedido de evento ou cesta não possuem checklist configurado.</p>
       </div>
     );
   }

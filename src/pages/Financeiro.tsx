@@ -397,12 +397,12 @@ export default function Financeiro() {
 
         <Card className="border-l-4 border-l-warning">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">A Receber (Pedidos)</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">A Receber (Pedidos de Evento ou Cesta)</CardTitle>
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-warning">{formatCurrency(totalPendentePedidos)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{pedidosPendentes.length} pedidos pendentes</p>
+            <p className="text-xs text-muted-foreground mt-1">{pedidosPendentes.length} pedidos de evento ou cesta pendentes</p>
           </CardContent>
         </Card>
       </div>

@@ -1248,6 +1248,12 @@ export default function Configuracoes() {
                                         <Badge variant="default">
                                           Receita
                                         </Badge>
+                                        {cat.exclusao_bloqueada && (
+                                          <Badge variant="outline" className="text-xs">
+                                            <Shield className="h-3 w-3 mr-1" />
+                                            Bloqueada
+                                          </Badge>
+                                        )}
                                         <div className="flex items-center gap-1">
                                           <Palette className="h-3 w-3 text-muted-foreground" />
                                           <span className="text-xs text-muted-foreground">{cat.cor}</span>
@@ -1261,7 +1267,7 @@ export default function Configuracoes() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() => setCategoriaDialog({ open: true, categoria: cat })}
-                                      disabled={updateCategoria.isPending}
+                                      disabled={updateCategoria.isPending || cat.exclusao_bloqueada}
                                     >
                                       <Edit className="h-4 w-4" />
                                     </Button>
@@ -1276,7 +1282,7 @@ export default function Configuracoes() {
                                           action: 'delete_categoria'
                                         });
                                       }}
-                                      disabled={deleteCategoria.isPending}
+                                      disabled={deleteCategoria.isPending || cat.exclusao_bloqueada}
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -1332,6 +1338,12 @@ export default function Configuracoes() {
                                         <Badge variant="secondary">
                                           Despesa
                                         </Badge>
+                                        {cat.exclusao_bloqueada && (
+                                          <Badge variant="outline" className="text-xs">
+                                            <Shield className="h-3 w-3 mr-1" />
+                                            Bloqueada
+                                          </Badge>
+                                        )}
                                         <div className="flex items-center gap-1">
                                           <Palette className="h-3 w-3 text-muted-foreground" />
                                           <span className="text-xs text-muted-foreground">{cat.cor}</span>
@@ -1345,7 +1357,7 @@ export default function Configuracoes() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() => setCategoriaDialog({ open: true, categoria: cat })}
-                                      disabled={updateCategoria.isPending}
+                                      disabled={updateCategoria.isPending || cat.exclusao_bloqueada}
                                     >
                                       <Edit className="h-4 w-4" />
                                     </Button>
@@ -1360,7 +1372,7 @@ export default function Configuracoes() {
                                           action: 'delete_categoria'
                                         });
                                       }}
-                                      disabled={deleteCategoria.isPending}
+                                      disabled={deleteCategoria.isPending || cat.exclusao_bloqueada}
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
