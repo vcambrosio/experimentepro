@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, User, Package, Loader2, Clock, DollarSign, Download, Printer } from 'lucide-react';
+import { Calendar, User, Package, Loader2, Clock, DollarSign, Download, Printer, FileText } from 'lucide-react';
 import { pdf } from '@react-pdf/renderer';
 import { usePedido } from '@/hooks/usePedidos';
 import { useConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
@@ -188,12 +188,12 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
               </div>
 
               {/* Status */}
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Status:</span>
                   <Badge className={getStatusBadgeClass(pedido.status)}>
-                    {pedido.status === 'pendente' ? 'Pendente' : 
+                    {pedido.status === 'pendente' ? 'Pendente' :
                      pedido.status === 'executado' ? 'Executado' : 'Cancelado'}
                   </Badge>
                 </div>
@@ -202,6 +202,13 @@ export function PedidoViewDialog({ open, onOpenChange, pedidoId }: PedidoViewDia
                   <span className="text-sm text-muted-foreground">Pagamento:</span>
                   <Badge className={getStatusBadgeClass(pedido.status_pagamento)}>
                     {pedido.status_pagamento === 'pendente' ? 'A Pagar' : 'Pago'}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Nota Fiscal:</span>
+                  <Badge variant={pedido.emite_nota_fiscal ? "default" : "outline"} className={pedido.emite_nota_fiscal ? "bg-primary/10 text-primary border-primary/20" : ""}>
+                    {pedido.emite_nota_fiscal ? 'Sim' : 'Não'}
                   </Badge>
                 </div>
               </div>

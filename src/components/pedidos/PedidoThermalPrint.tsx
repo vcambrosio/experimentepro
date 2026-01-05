@@ -43,8 +43,9 @@ export function useThermalPrint() {
       box-sizing: border-box;
     }
     body {
-      font-family: 'Courier New', monospace;
-      font-size: 15px;
+      font-family: 'Arial Black', 'Arial', sans-serif;
+      font-size: 16px;
+      font-weight: 900;
       width: 80mm;
       padding: 5mm;
       background: white;
@@ -57,16 +58,17 @@ export function useThermalPrint() {
       margin-bottom: 8px;
     }
     .logo {
-      font-size: 20px;
-      font-weight: bold;
+      font-size: 22px;
+      font-weight: 900;
     }
     .pedido-num {
-      font-size: 18px;
-      font-weight: bold;
+      font-size: 20px;
+      font-weight: 900;
       margin-top: 4px;
     }
     .datetime {
-      font-size: 13px;
+      font-size: 14px;
+      font-weight: 700;
       color: #333;
       margin-top: 4px;
     }
@@ -82,17 +84,18 @@ export function useThermalPrint() {
       margin-bottom: 8px;
     }
     .section-title {
-      font-weight: bold;
+      font-weight: 900;
       text-transform: uppercase;
       margin-bottom: 4px;
-      font-size: 14px;
+      font-size: 16px;
     }
     .label {
-      font-size: 13px;
+      font-size: 14px;
+      font-weight: 700;
       color: #666;
     }
     .value {
-      font-weight: bold;
+      font-weight: 900;
     }
     .item {
       margin-bottom: 8px;
@@ -104,21 +107,23 @@ export function useThermalPrint() {
       justify-content: space-between;
     }
     .item-qty {
-      font-weight: bold;
+      font-weight: 900;
       width: 30px;
     }
     .item-name {
-      font-weight: bold;
+      font-weight: 900;
       flex: 1;
     }
     .item-desc {
-      font-size: 13px;
+      font-size: 14px;
+      font-weight: 700;
       color: #666;
       margin-left: 30px;
       margin-top: 2px;
     }
     .item-obs {
-      font-size: 12px;
+      font-size: 13px;
+      font-weight: 700;
       color: #888;
       margin-left: 30px;
       font-style: italic;
@@ -131,12 +136,13 @@ export function useThermalPrint() {
       border-radius: 4px;
     }
     .status-label {
-      font-size: 13px;
+      font-size: 14px;
+      font-weight: 700;
       color: #666;
     }
     .status-value {
-      font-size: 18px;
-      font-weight: bold;
+      font-size: 20px;
+      font-weight: 900;
       margin-top: 2px;
     }
     .total-section {
@@ -150,17 +156,18 @@ export function useThermalPrint() {
       align-items: center;
     }
     .total-label {
-      font-size: 15px;
-      font-weight: bold;
+      font-size: 16px;
+      font-weight: 900;
     }
     .total-value {
-      font-size: 18px;
-      font-weight: bold;
+      font-size: 20px;
+      font-weight: 900;
     }
     .footer {
       margin-top: 12px;
       text-align: center;
-      font-size: 12px;
+      font-size: 13px;
+      font-weight: 700;
       color: #999;
     }
     @media print {

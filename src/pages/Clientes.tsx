@@ -37,6 +37,7 @@ export default function Clientes() {
 
   const filteredClientes = clientes?.filter(cliente =>
     cliente.nome.toLowerCase().includes(search.toLowerCase()) ||
+    cliente.contato?.toLowerCase().includes(search.toLowerCase()) ||
     cliente.email?.toLowerCase().includes(search.toLowerCase()) ||
     cliente.telefone?.includes(search)
   );
@@ -123,6 +124,12 @@ export default function Clientes() {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
+                        {cliente.contato && (
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <User className="h-3 w-3 text-primary" />
+                            {cliente.contato}
+                          </div>
+                        )}
                         {cliente.telefone && (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Phone className="h-3 w-3" />

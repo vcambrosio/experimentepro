@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -475,8 +476,9 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
-                {itens.map((item, index) => (
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-4">
+                  {itens.map((item, index) => (
                   <div key={index} className="p-4 border rounded-lg space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-sm text-muted-foreground">Item {index + 1}</span>
@@ -556,15 +558,16 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                       <span className="font-medium">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
                     </div>
                   </div>
-                ))}
-
-                <div className="flex justify-end p-4 bg-muted rounded-lg">
-                  <div className="text-right">
-                    <span className="text-muted-foreground">Total do Orçamento: </span>
-                    <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal(itens.filter(item => item.produto_id && item.produto_id !== '')))}</span>
+                  ))}
+                  
+                  <div className="flex justify-end p-4 bg-muted rounded-lg sticky bottom-0">
+                    <div className="text-right">
+                      <span className="text-muted-foreground">Total do Orçamento: </span>
+                      <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal(itens.filter(item => item.produto_id && item.produto_id !== '')))}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </ScrollArea>
             )}
           </div>
         </div>

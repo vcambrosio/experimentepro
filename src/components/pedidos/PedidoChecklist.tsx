@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CheckSquare, Square, Printer, Loader2 } from 'lucide-react';
-import { pdf } from '@react-pdf/renderer';
 import { Pedido, ItemPedido, ChecklistItem } from '@/types';
 import { useChecklistItensByProdutos } from '@/hooks/useChecklist';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { ChecklistPDF } from './ChecklistPDF';
+import { useChecklistThermalPrint } from './ChecklistThermalPrint';
 
 interface ChecklistItem2 {
   id: string;
@@ -25,7 +24,7 @@ interface PedidoChecklistProps {
 }
 
 export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: PedidoChecklistProps) {
-  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const { print: printThermal } = useChecklistThermalPrint();
   
   // Get product IDs from pedido items
   const produtoIds = useMemo(() => {
@@ -37,7 +36,7 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
   // Build checklist with product names
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
   
-  // Build checklist with calculated quantities based on pedido quantities
+  // Build checklist with calculated quantities based on pedido quantities and tipo_calculo
   const checklistData = useMemo(() => {
     if (!checklistItens || !pedido.itens) return [];
     
@@ -53,10 +52,18 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
           produtoNome: pedidoItem.produto?.nome || 'Produto',
           produtoId: pedidoItem.produto_id,
           quantidade: pedidoItem.quantidade,
-          itens: produtoChecklist.map(ci => ({
-            ...ci,
-            quantidadeTotal: ci.quantidade_por_unidade * pedidoItem.quantidade,
-          })),
+          itens: produtoChecklist.map(ci => {
+            // Se for 'multiplo', multiplica pela quantidade do pedido
+            // Se for 'unitario', mantém a quantidade fixa
+            const quantidadeTotal = ci.tipo_calculo === 'multiplo'
+              ? ci.quantidade_por_unidade * pedidoItem.quantidade
+              : ci.quantidade_por_unidade;
+            
+            return {
+              ...ci,
+              quantidadeTotal,
+            };
+          }),
         });
       }
     });
@@ -74,34 +81,14 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
   const totalItems = checklistData.reduce((acc, p) => acc + p.itens.length, 0);
   const checkedCount = Object.values(checkedItems).filter(Boolean).length;
   
-  const handlePrintChecklist = async () => {
-    setGeneratingPdf(true);
-    try {
-      const blob = await pdf(
-        <ChecklistPDF 
-          pedido={pedido}
-          checklistData={checklistData}
-          checkedItems={checkedItems}
-          empresaNome={empresaNome}
-        />
-      ).toBlob();
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `checklist-pedido-${format(new Date(pedido.data_hora_entrega), 'dd-MM-yyyy')}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      toast.success('Checklist gerado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao gerar checklist:', error);
-      toast.error('Erro ao gerar checklist');
-    } finally {
-      setGeneratingPdf(false);
-    }
+  const handlePrintChecklist = () => {
+    printThermal({
+      pedido,
+      checklistData,
+      checkedItems,
+      empresaNome,
+    });
+    toast.success('Checklist enviado para impressão!');
   };
   
   if (isLoading) {
@@ -138,16 +125,9 @@ export function PedidoChecklist({ pedido, empresaNome = 'Experimente Pro' }: Ped
               variant="outline"
               size="sm"
               onClick={handlePrintChecklist}
-              disabled={generatingPdf}
             >
-              {generatingPdf ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Printer className="h-4 w-4 mr-2" />
-                  Imprimir
-                </>
-              )}
+              <Printer className="h-4 w-4 mr-2" />
+              Imprimir
             </Button>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Save, Loader2, Plus, Trash2, ListChecks, FolderPlus } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Plus, Trash2, ListChecks, FolderPlus, Edit, X } from 'lucide-react';
 import { useProduto, useCreateProduto, useUpdateProduto } from '@/hooks/useProdutos';
 import { useCategorias, useCreateCategoria } from '@/hooks/useCategorias';
 import { useChecklistItens, useCreateChecklistItem, useUpdateChecklistItem, useDeleteChecklistItem } from '@/hooks/useChecklist';
@@ -70,8 +70,49 @@ export default function ProdutoForm() {
   
   const [novoItemChecklist, setNovoItemChecklist] = useState('');
   const [novaQuantidade, setNovaQuantidade] = useState(1);
+  const [novoTipoCalculo, setNovoTipoCalculo] = useState<'unitario' | 'multiplo'>('multiplo');
   const [novaCategoriaDialog, setNovaCategoriaDialog] = useState(false);
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('');
+  const [valorVendaFormatado, setValorVendaFormatado] = useState('');
+  
+  // Estado para edição de item de checklist
+  const [editItemDialog, setEditItemDialog] = useState(false);
+  const [editItem, setEditItem] = useState<{ id: string; descricao: string; quantidade: number; tipo: 'unitario' | 'multiplo' } | null>(null);
+
+  // Função para formatar valor como moeda brasileira
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+  };
+
+  // Função para converter string formatada para número
+  const parseCurrency = (value: string): number => {
+    // Remove todos os caracteres não numéricos exceto vírgula decimal
+    const cleaned = value.replace(/[^\d,]/g, '');
+    // Substitui vírgula por ponto para conversão
+    const numberValue = parseFloat(cleaned.replace(',', '.')) || 0;
+    return numberValue;
+  };
+
+  // Função para formatar enquanto digita
+  const formatCurrencyInput = (value: string): string => {
+    // Remove todos os caracteres não numéricos
+    const cleaned = value.replace(/\D/g, '');
+    // Converte para número em centavos
+    const numberValue = parseInt(cleaned) / 100;
+    // Formata como moeda
+    return formatCurrency(numberValue);
+  };
+
+  // Handler para mudança no campo de valor
+  const handleValorVendaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const formatted = formatCurrencyInput(value);
+    setValorVendaFormatado(formatted);
+    form.setValue('valor_venda', parseCurrency(formatted));
+  };
 
   const form = useForm<ProdutoFormData>({
     resolver: zodResolver(produtoSchema),
@@ -93,6 +134,8 @@ export default function ProdutoForm() {
         valor_venda: produto.valor_venda,
         ativo: produto.ativo,
       });
+      // Atualiza o valor formatado separadamente
+      setValorVendaFormatado(formatCurrency(produto.valor_venda));
     }
   }, [produto, form]);
 
@@ -129,22 +172,55 @@ export default function ProdutoForm() {
       produto_id: id,
       descricao: novoItemChecklist,
       quantidade_por_unidade: novaQuantidade,
+      tipo_calculo: novoTipoCalculo,
       ordem: (checklistItens?.length || 0) + 1,
     });
     
     setNovoItemChecklist('');
     setNovaQuantidade(1);
+    setNovoTipoCalculo('multiplo');
   };
 
   const handleDeleteChecklistItem = async (itemId: string) => {
     await deleteChecklistItem.mutateAsync(itemId);
   };
 
-  const handleUpdateChecklistItem = async (itemId: string, quantidade: number) => {
+  const handleUpdateChecklistItem = async (itemId: string, quantidade: number, tipoCalculo?: 'unitario' | 'multiplo', descricao?: string) => {
     await updateChecklistItem.mutateAsync({
       id: itemId,
       quantidade_por_unidade: quantidade,
+      tipo_calculo: tipoCalculo,
+      descricao,
     });
+  };
+
+  const handleOpenEditDialog = (item: any) => {
+    setEditItem({
+      id: item.id,
+      descricao: item.descricao,
+      quantidade: item.quantidade_por_unidade,
+      tipo: item.tipo_calculo,
+    });
+    setEditItemDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editItem) return;
+    
+    await updateChecklistItem.mutateAsync({
+      id: editItem.id,
+      descricao: editItem.descricao,
+      quantidade_por_unidade: editItem.quantidade,
+      tipo_calculo: editItem.tipo,
+    });
+    
+    setEditItemDialog(false);
+    setEditItem(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditItemDialog(false);
+    setEditItem(null);
   };
 
   const handleCreateCategoria = async () => {
@@ -282,12 +358,11 @@ export default function ProdutoForm() {
                     <FormItem>
                       <FormLabel>Valor de Venda *</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          min="0" 
-                          placeholder="0,00" 
-                          {...field} 
+                        <Input
+                          type="text"
+                          placeholder="R$ 0,00"
+                          value={valorVendaFormatado}
+                          onChange={handleValorVendaChange}
                         />
                       </FormControl>
                       <FormMessage />
@@ -330,20 +405,30 @@ export default function ProdutoForm() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Add new checklist item */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Input
                     placeholder="Descrição do item"
                     value={novoItemChecklist}
                     onChange={(e) => setNovoItemChecklist(e.target.value)}
+                    className="flex-1 min-w-[200px]"
                   />
                   <Input
                     type="number"
                     min="1"
-                    placeholder="Qtd por unidade"
+                    placeholder="Qtd"
                     value={novaQuantidade}
                     onChange={(e) => setNovaQuantidade(parseInt(e.target.value) || 1)}
-                    className="w-40"
+                    className="w-24"
                   />
+                  <Select value={novoTipoCalculo} onValueChange={(value: 'unitario' | 'multiplo') => setNovoTipoCalculo(value)}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="multiplo">Múltiplo</SelectItem>
+                      <SelectItem value="unitario">Unitário</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button
                     type="button"
                     variant="outline"
@@ -367,28 +452,39 @@ export default function ProdutoForm() {
                     {checklistItens.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg gap-3 hover:bg-muted/70 transition-colors"
                       >
-                        <div className="flex-1">
-                          <p className="font-medium">{item.descricao}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate">{item.descricao}</p>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              {item.tipo_calculo === 'multiplo' ? '×' : '1'}
+                            </span>
+                          </div>
                           <p className="text-sm text-muted-foreground">
-                            {item.quantidade_por_unidade}x por unidade
+                            {item.tipo_calculo === 'multiplo'
+                              ? `${item.quantidade_por_unidade}x por unidade (multiplicado pela quantidade do pedido)`
+                              : `${item.quantidade_por_unidade}x fixo (não multiplica pela quantidade do pedido)`
+                            }
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantidade_por_unidade}
-                            onChange={(e) => handleUpdateChecklistItem(item.id, parseInt(e.target.value) || 1)}
-                            className="w-24"
-                          />
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenEditDialog(item)}
+                            className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                            title="Editar item"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDeleteChecklistItem(item.id)}
                             disabled={deleteChecklistItem.isPending}
-                            className="text-destructive hover:text-destructive"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            title="Excluir item"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -474,6 +570,88 @@ export default function ProdutoForm() {
                 <>
                   <FolderPlus className="mr-2 h-4 w-4" />
                   Criar Categoria
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para editar item de checklist */}
+      <Dialog open={editItemDialog} onOpenChange={setEditItemDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-primary" />
+              Editar Item de Checklist
+            </DialogTitle>
+            <DialogDescription>
+              Altere as informações do item de checklist
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Descrição *</label>
+              <Input
+                placeholder="Descrição do item"
+                value={editItem?.descricao || ''}
+                onChange={(e) => setEditItem(prev => prev ? { ...prev, descricao: e.target.value } : null)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Quantidade *</label>
+              <Input
+                type="number"
+                min="1"
+                placeholder="Quantidade"
+                value={editItem?.quantidade || 1}
+                onChange={(e) => setEditItem(prev => prev ? { ...prev, quantidade: parseInt(e.target.value) || 1 } : null)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tipo de Cálculo *</label>
+              <Select
+                value={editItem?.tipo || 'multiplo'}
+                onValueChange={(value: 'unitario' | 'multiplo') => setEditItem(prev => prev ? { ...prev, tipo: value } : null)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="multiplo">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Múltiplo</span>
+                      <span className="text-xs text-muted-foreground">Multiplica pela quantidade do pedido</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="unitario">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Unitário</span>
+                      <span className="text-xs text-muted-foreground">Quantidade fixa, não multiplica</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelEdit}>
+              <X className="mr-2 h-4 w-4" />
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={!editItem?.descricao || updateChecklistItem.isPending}
+            >
+              {updateChecklistItem.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Salvar Alterações
                 </>
               )}
             </Button>

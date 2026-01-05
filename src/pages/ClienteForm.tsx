@@ -34,9 +34,9 @@ const clienteSchema = z.object({
   tipo_pessoa: z.enum(['fisica', 'juridica'] as const),
   cpf_cnpj: z.string().optional(),
   endereco: z.string().optional(),
+  contato: z.string().optional(),
   telefone: z.string().optional(),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
-  emite_nota_fiscal: z.boolean(),
   ativo: z.boolean(),
 });
 
@@ -69,9 +69,9 @@ export default function ClienteForm() {
       tipo_pessoa: 'fisica',
       cpf_cnpj: '',
       endereco: '',
+      contato: '',
       telefone: '',
       email: '',
-      emite_nota_fiscal: false,
       ativo: true,
     },
   });
@@ -83,9 +83,9 @@ export default function ClienteForm() {
         tipo_pessoa: cliente.tipo_pessoa,
         cpf_cnpj: cliente.cpf_cnpj || '',
         endereco: cliente.endereco || '',
+        contato: cliente.contato || '',
         telefone: cliente.telefone || '',
         email: cliente.email || '',
-        emite_nota_fiscal: cliente.emite_nota_fiscal,
         ativo: cliente.ativo,
       });
     }
@@ -99,22 +99,22 @@ export default function ClienteForm() {
         id,
         nome: data.nome,
         tipo_pessoa: data.tipo_pessoa,
-        emite_nota_fiscal: data.emite_nota_fiscal,
         ativo: data.ativo,
         email: data.email || undefined,
         cpf_cnpj: data.cpf_cnpj || undefined,
         endereco: data.endereco || undefined,
+        contato: data.contato || undefined,
         telefone: data.telefone || undefined,
       });
     } else {
       const result = await createCliente.mutateAsync({
         nome: data.nome,
         tipo_pessoa: data.tipo_pessoa,
-        emite_nota_fiscal: data.emite_nota_fiscal,
         ativo: data.ativo,
         email: data.email || undefined,
         cpf_cnpj: data.cpf_cnpj || undefined,
         endereco: data.endereco || undefined,
+        contato: data.contato || undefined,
         telefone: data.telefone || undefined,
       });
       clienteId = result.id;
@@ -374,6 +374,19 @@ export default function ClienteForm() {
               <CardTitle>Contato</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <FormField
+                control={form.control}
+                name="contato"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contato</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nome do contato" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -425,24 +438,6 @@ export default function ClienteForm() {
               <CardTitle>Configurações</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="emite_nota_fiscal"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Emite Nota Fiscal</FormLabel>
-                      <FormDescription>
-                        Marque se o cliente solicita nota fiscal
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="ativo"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2 } from 'lucide-react';
+import { CalendarIcon, Plus, Trash2, Loader2, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientes, useSetoresCliente } from '@/hooks/useClientes';
 import { useProdutos } from '@/hooks/useProdutos';
@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -61,6 +63,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate }: Pe
   const [setorId, setSetorId] = useState('');
   const [dataEntrega, setDataEntrega] = useState<Date | undefined>();
   const [horaEntrega, setHoraEntrega] = useState('12:00');
+  const [emiteNotaFiscal, setEmiteNotaFiscal] = useState(false);
   const [itens, setItens] = useState<ItemForm[]>([]);
   
   const { data: setores } = useSetoresCliente(clienteId);
@@ -76,6 +79,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate }: Pe
         const entregaDate = new Date(pedido.data_hora_entrega);
         setDataEntrega(entregaDate);
         setHoraEntrega(format(entregaDate, 'HH:mm'));
+        setEmiteNotaFiscal(pedido.emite_nota_fiscal || false);
         
         if (pedidoCompleto.itens) {
           setItens(pedidoCompleto.itens.map(item => ({
@@ -98,6 +102,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate }: Pe
     setSetorId('');
     setDataEntrega(initialDate || undefined);
     setHoraEntrega('12:00');
+    setEmiteNotaFiscal(false);
     setItens([]);
   };
 
@@ -151,6 +156,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate }: Pe
       status: 'pendente' as const,
       status_pagamento: 'pendente' as const,
       valor_total: calcularTotal(),
+      emite_nota_fiscal: emiteNotaFiscal,
       created_by: user?.id || '',
     };
 
@@ -275,6 +281,20 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate }: Pe
             </div>
           </div>
 
+          {/* Emite Nota Fiscal */}
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label className="text-base">Emite Nota Fiscal</Label>
+              <p className="text-sm text-muted-foreground">
+                Marque se este pedido requer emissão de nota fiscal
+              </p>
+            </div>
+            <Switch
+              checked={emiteNotaFiscal}
+              onCheckedChange={setEmiteNotaFiscal}
+            />
+          </div>
+
           {/* Itens */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -293,8 +313,9 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate }: Pe
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
-                {itens.map((item, index) => (
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-4">
+                  {itens.map((item, index) => (
                   <div key={index} className="p-4 border rounded-lg space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-sm text-muted-foreground">Item {index + 1}</span>
@@ -367,15 +388,16 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate }: Pe
                       <span className="font-medium">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
                     </div>
                   </div>
-                ))}
-
-                <div className="flex justify-end p-4 bg-muted rounded-lg">
-                  <div className="text-right">
-                    <span className="text-muted-foreground">Total do Pedido: </span>
-                    <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal())}</span>
+                  ))}
+                  
+                  <div className="flex justify-end p-4 bg-muted rounded-lg sticky bottom-0">
+                    <div className="text-right">
+                      <span className="text-muted-foreground">Total do Pedido: </span>
+                      <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal())}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </ScrollArea>
             )}
           </div>
         </div>

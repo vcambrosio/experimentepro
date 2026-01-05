@@ -234,6 +234,7 @@ export default function Pedidos() {
                 <TableHead>Data Entrega</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Setor</TableHead>
+                <TableHead>Nota Fiscal</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Pagamento</TableHead>
                 {isAdmin && <TableHead className="text-right">Valor</TableHead>}
@@ -260,7 +261,25 @@ export default function Pedidos() {
                     {pedido.cliente?.nome || 'Cliente não encontrado'}
                   </TableCell>
                   <TableCell>
-                    {pedido.setor?.nome_setor || '-'}
+                    <div className="flex flex-col">
+                      <span className="font-medium">{pedido.setor?.nome_setor || '-'}</span>
+                      {pedido.setor?.responsavel && (
+                        <span className="text-xs text-muted-foreground">
+                          Resp: {pedido.setor.responsavel}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {pedido.emite_nota_fiscal ? (
+                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                        Sim
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        Não
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

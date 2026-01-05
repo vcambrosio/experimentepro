@@ -11,9 +11,9 @@ export interface Cliente {
   tipo_pessoa: TipoPessoa;
   cpf_cnpj?: string;
   endereco?: string;
+  contato?: string;
   telefone?: string;
   email?: string;
-  emite_nota_fiscal: boolean;
   ativo: boolean;
   created_at: string;
   updated_at: string;
@@ -48,11 +48,14 @@ export interface Produto {
   categoria?: Categoria;
 }
 
+export type TipoCalculoChecklist = 'unitario' | 'multiplo';
+
 export interface ChecklistItem {
   id: string;
   produto_id: string;
   descricao: string;
   quantidade_por_unidade: number;
+  tipo_calculo: TipoCalculoChecklist;
   ordem: number;
   created_at: string;
 }
@@ -102,6 +105,7 @@ export interface Pedido {
   status: StatusPedido;
   status_pagamento: StatusPagamento;
   valor_total: number;
+  emite_nota_fiscal: boolean;
   created_at: string;
   created_by: string;
   executed_at?: string;

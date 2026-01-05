@@ -79,13 +79,13 @@ export default function Financeiro() {
     [pedidos]
   );
 
-  const pedidosComNota = useMemo(() => 
-    pedidos?.filter(p => p.cliente?.emite_nota_fiscal) || [],
+  const pedidosComNota = useMemo(() =>
+    pedidos?.filter(p => p.emite_nota_fiscal) || [],
     [pedidos]
   );
 
-  const pedidosSemNota = useMemo(() => 
-    pedidos?.filter(p => !p.cliente?.emite_nota_fiscal) || [],
+  const pedidosSemNota = useMemo(() =>
+    pedidos?.filter(p => !p.emite_nota_fiscal) || [],
     [pedidos]
   );
 
