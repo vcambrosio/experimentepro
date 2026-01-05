@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Loader2, Eye, EyeOff, Key } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Login() {
@@ -19,6 +20,10 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetPasswordDialog, setResetPasswordDialog] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const { resetPassword } = useAuth();
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 
@@ -45,6 +50,33 @@ export default function Login() {
       toast.error('Ocorreu um erro. Tente novamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!resetEmail) {
+      toast.error('Por favor, insira seu email');
+      return;
+    }
+
+    setResettingPassword(true);
+    
+    try {
+      const { error } = await resetPassword(resetEmail);
+      
+      if (error) {
+        toast.error('Erro ao enviar email de recuperação: ' + error.message);
+      } else {
+        toast.success('Email de recuperação enviado! Verifique sua caixa de entrada.');
+        setResetPasswordDialog(false);
+        setResetEmail('');
+      }
+    } catch (error: any) {
+      toast.error('Erro ao enviar email de recuperação: ' + (error?.message || 'Erro desconhecido'));
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -107,7 +139,19 @@ export default function Login() {
                 </Button>
               </div>
             </div>
-            <Button 
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setResetEmail(email);
+                  setResetPasswordDialog(true);
+                }}
+                className="text-sm text-primary hover:underline"
+              >
+                Esqueceu a senha?
+              </button>
+            </div>
+            <Button
               type="submit" 
               className="w-full h-11 text-base font-medium shadow-md hover:shadow-lg transition-all"
               disabled={loading}
@@ -124,6 +168,59 @@ export default function Login() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPasswordDialog} onOpenChange={setResetPasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-primary" />
+              Recuperar Senha
+            </DialogTitle>
+            <DialogDescription>
+              Digite seu email para receber um link de recuperação de senha
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="reset-email">Email *</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                placeholder="seu@email.com"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                disabled={resettingPassword}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setResetPasswordDialog(false);
+                  setResetEmail('');
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={resettingPassword}>
+                {resettingPassword ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Key className="mr-2 h-4 w-4" />
+                    Enviar Link
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

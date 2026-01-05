@@ -12,6 +12,7 @@ import { Loader2 } from "lucide-react";
 
 // Lazy load pages for better performance
 const Login = lazy(() => import("./pages/Login"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Pedidos = lazy(() => import("./pages/Pedidos"));
 const Orcamentos = lazy(() => import("./pages/Orcamentos"));
@@ -49,6 +50,7 @@ const App = () => (
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/" element={<Navigate to="/login" replace />} />
               
               <Route path="/dashboard" element={

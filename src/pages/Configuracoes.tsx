@@ -118,7 +118,7 @@ type EditUsuarioFormData = z.infer<typeof editUsuarioSchema>;
 type UploadType = 'logo_sistema' | 'logo_pdf';
 
 export default function Configuracoes() {
-  const { user, profile, role, isAdmin, signOut } = useAuth();
+  const { user, profile, role, isAdmin, signOut, updatePassword } = useAuth();
   const { data: config, isLoading } = useConfiguracaoEmpresa();
   const { data: users, isLoading: loadingUsers } = useUsers();
   const { data: categoriasFinanceiras, isLoading: loadingCategorias } = useCategoriasFinanceiras();
@@ -185,6 +185,9 @@ export default function Configuracoes() {
     newCategorias: string[];
   }>({ open: false, file: null, preview: [], newCategorias: [] });
   
+  const [passwordDialog, setPasswordDialog] = useState<{ open: boolean }>({ open: false });
+  const [changingPassword, setChangingPassword] = useState(false);
+  
   const form = useForm<EmpresaFormData>({
     resolver: zodResolver(empresaSchema),
     defaultValues: {
@@ -212,7 +215,50 @@ export default function Configuracoes() {
       fullName: '',
     },
   });
-  
+
+  const passwordSchema = z.object({
+    currentPassword: z.string().min(1, 'Senha atual é obrigatória'),
+    newPassword: z.string().min(6, 'Nova senha deve ter no mínimo 6 caracteres'),
+    confirmPassword: z.string().min(1, 'Confirmação de senha é obrigatória'),
+  }).refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'As senhas não conferem',
+    path: ['confirmPassword'],
+  });
+
+  type PasswordFormData = z.infer<typeof passwordSchema>;
+
+  const passwordForm = useForm<PasswordFormData>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  });
+
+  const handleChangePassword = async (data: PasswordFormData) => {
+    setChangingPassword(true);
+    try {
+      const { error } = await updatePassword(data.currentPassword, data.newPassword);
+      
+      if (error) {
+        toast.error('Erro ao alterar senha: ' + error.message);
+      } else {
+        toast.success('Senha alterada com sucesso!');
+        setPasswordDialog({ open: false });
+        passwordForm.reset({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        });
+      }
+    } catch (error: any) {
+      toast.error('Erro ao alterar senha: ' + (error?.message || 'Erro desconhecido'));
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   useEffect(() => {
     if (config) {
       form.reset({
@@ -965,6 +1011,28 @@ export default function Configuracoes() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5 text-primary" />
+                Alterar Senha
+              </CardTitle>
+              <CardDescription>
+                Altere sua senha de acesso ao sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setPasswordDialog({ open: true })}
+              >
+                <Key className="h-4 w-4 mr-2" />
+                Alterar Senha
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card className="border-destructive/50">
             <CardHeader>
               <CardTitle className="text-destructive">Sessão</CardTitle>
@@ -973,8 +1041,8 @@ export default function Configuracoes() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 onClick={() => signOut()}
               >
                 Sair do Sistema
@@ -1996,6 +2064,104 @@ export default function Configuracoes() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={passwordDialog.open} onOpenChange={(open) => setPasswordDialog({ open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-primary" />
+              Alterar Senha
+            </DialogTitle>
+            <DialogDescription>
+              Digite sua senha atual e a nova senha para alterar
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-4">
+              <FormField
+                control={passwordForm.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Senha Atual *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Digite sua senha atual"
+                        autoComplete="current-password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="newPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nova Senha *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Digite a nova senha"
+                        autoComplete="new-password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Mínimo 6 caracteres
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={passwordForm.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirmar Nova Senha *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Confirme a nova senha"
+                        autoComplete="new-password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setPasswordDialog({ open: false })}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={changingPassword}>
+                  {changingPassword ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Alterando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Alterar Senha
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
