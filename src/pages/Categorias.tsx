@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, FolderOpen, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, FolderOpen, ArrowUp, ArrowUpDown, ArrowDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useCategorias, useDeleteCategoria } from '@/hooks/useCategorias';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -31,6 +33,11 @@ type SortDirection = 'asc' | 'desc';
 
 export default function Categorias() {
   const navigate = useNavigate();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader('Categorias', 'Gerencie as categorias de produtos');
+  }, [setHeader]);
   const { data: categorias, isLoading } = useCategorias();
   const deleteCategoria = useDeleteCategoria();
   
@@ -92,19 +99,42 @@ export default function Categorias() {
     }
   };
 
+  const handleExportXLSX = () => {
+    if (!categorias || categorias.length === 0) {
+      return;
+    }
+
+    // Prepara os dados para exportação
+    const data = categorias.map((categoria) => ({
+      'Nome': categoria.nome,
+      'Status': categoria.ativo ? 'Ativa' : 'Inativa',
+      'Criada em': new Date(categoria.created_at).toLocaleDateString('pt-BR'),
+    }));
+
+    // Cria a planilha
+    const ws = XLSX.utils.json_to_sheet(data);
+    
+    // Ajusta a largura das colunas
+    const colWidths = [
+      { wch: 40 }, // Nome
+      { wch: 15 }, // Status
+      { wch: 20 }, // Criada em
+    ];
+    ws['!cols'] = colWidths;
+
+    // Cria o workbook e adiciona a planilha
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Categorias');
+
+    // Gera o nome do arquivo com data atual
+    const fileName = `categorias_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Faz o download
+    XLSX.writeFile(wb, fileName);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Categorias</h1>
-          <p className="text-muted-foreground">Gerencie as categorias de produtos</p>
-        </div>
-        <Button onClick={() => navigate('/categorias/novo')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Categoria
-        </Button>
-      </div>
-
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
@@ -117,6 +147,19 @@ export default function Categorias() {
                 className="pl-10"
               />
             </div>
+            <Button onClick={() => navigate('/categorias/novo')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Categoria
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportXLSX}
+              disabled={!categorias || categorias.length === 0}
+              title="Exportar todas as categorias para XLSX"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar XLSX
+            </Button>
           </div>
         </CardHeader>
         <CardContent>

@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Calendar, Filter, CheckCircle, XCircle, Clock, DollarSign, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Calendar, Filter, CheckCircle, XCircle, Clock, DollarSign, ArrowUp, ArrowUpDown, ArrowDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { usePedidos, useDeletePedido, useUpdatePedido } from '@/hooks/usePedidos';
 import { useCreateLancamento } from '@/hooks/useFinanceiro';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Pedido, StatusPedido, StatusPagamento, LancamentoFinanceiro } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,6 +87,11 @@ type SortDirection = 'asc' | 'desc';
 
 export default function Pedidos() {
   const { isAdmin } = useAuth();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader('Pedidos de Evento ou Cesta', 'Gerencie seus pedidos de evento ou cesta de entrega');
+  }, [setHeader]);
   const { data: pedidos, isLoading, error } = usePedidos();
   const deletePedido = useDeletePedido();
   const updatePedido = useUpdatePedido();
@@ -272,6 +279,58 @@ export default function Pedidos() {
     }).format(value);
   };
 
+  const handleExportXLSX = () => {
+    if (!pedidosEventoCesta || pedidosEventoCesta.length === 0) {
+      return;
+    }
+
+    // Prepara os dados para exportação
+    const data = pedidosEventoCesta.map((pedido) => ({
+      'ID': pedido.id,
+      'Cliente': pedido.cliente?.nome || '',
+      'Setor': pedido.setor?.nome_setor || '',
+      'Responsável Setor': pedido.setor?.responsavel || '',
+      'Contato Setor': pedido.setor?.contato || '',
+      'Data Entrega': format(new Date(pedido.data_hora_entrega), 'dd/MM/yyyy', { locale: ptBR }),
+      'Hora Entrega': format(new Date(pedido.data_hora_entrega), 'HH:mm', { locale: ptBR }),
+      'Status': statusLabels[pedido.status],
+      'Status Pagamento': statusPagamentoLabels[pedido.status_pagamento],
+      'Valor Total': pedido.valor_total,
+      'Nota Fiscal': pedido.emite_nota_fiscal ? 'Sim' : 'Não',
+      'Produtos': pedido.itens?.map(item => `${item.produto?.nome || ''} (${item.quantidade}x)`).join('; ') || '',
+    }));
+
+    // Cria a planilha
+    const ws = XLSX.utils.json_to_sheet(data);
+    
+    // Ajusta a largura das colunas
+    const colWidths = [
+      { wch: 25 }, // ID
+      { wch: 30 }, // Cliente
+      { wch: 25 }, // Setor
+      { wch: 20 }, // Responsável Setor
+      { wch: 20 }, // Contato Setor
+      { wch: 15 }, // Data Entrega
+      { wch: 15 }, // Hora Entrega
+      { wch: 15 }, // Status
+      { wch: 15 }, // Status Pagamento
+      { wch: 15 }, // Valor Total
+      { wch: 15 }, // Nota Fiscal
+      { wch: 50 }, // Produtos
+    ];
+    ws['!cols'] = colWidths;
+
+    // Cria o workbook e adiciona a planilha
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Pedidos Evento Cesta');
+
+    // Gera o nome do arquivo com data atual
+    const fileName = `pedidos_evento_cesta_${format(new Date(), 'dd-MM-yyyy_HH-mm')}.xlsx`;
+
+    // Faz o download
+    XLSX.writeFile(wb, fileName);
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -285,20 +344,9 @@ export default function Pedidos() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Pedidos de Evento ou Cesta</h1>
-          <p className="text-muted-foreground">Gerencie seus pedidos de evento ou cesta de entrega</p>
-        </div>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Pedido de Evento ou Cesta
-        </Button>
-      </div>
-
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por cliente ou ID..."
@@ -330,6 +378,19 @@ export default function Pedidos() {
             <SelectItem value="pago">Pago</SelectItem>
           </SelectContent>
         </Select>
+        <Button onClick={handleCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Pedido de Evento ou Cesta
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleExportXLSX}
+          disabled={!pedidosEventoCesta || pedidosEventoCesta.length === 0}
+          title="Exportar todos os pedidos para XLSX"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Exportar XLSX
+        </Button>
       </div>
 
       {/* Table */}

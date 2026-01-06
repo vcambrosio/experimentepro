@@ -8,6 +8,7 @@ import { useProduto, useCreateProduto, useUpdateProduto } from '@/hooks/useProdu
 import { useCategorias, useCreateCategoria } from '@/hooks/useCategorias';
 import { useChecklistItens, useCreateChecklistItem, useUpdateChecklistItem, useDeleteChecklistItem } from '@/hooks/useChecklist';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -55,6 +56,11 @@ export default function ProdutoForm() {
   const { id } = useParams();
   const isEditing = !!id;
   const { isAdmin } = useAuth();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader(id ? 'Editar Produto' : 'Novo Produto', id ? 'Atualize as informações do produto' : 'Cadastre um novo produto');
+  }, [id, setHeader]);
  
   const { data: produto, isLoading } = useProduto(id || '');
   const { data: categorias } = useCategorias();
@@ -259,19 +265,6 @@ export default function ProdutoForm() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/produtos')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            {isEditing ? 'Editar Produto' : 'Novo Produto'}
-          </h1>
-          <p className="text-muted-foreground">
-            {isEditing ? 'Atualize as informações do produto' : 'Cadastre um novo produto'}
-          </p>
-        </div>
-      </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

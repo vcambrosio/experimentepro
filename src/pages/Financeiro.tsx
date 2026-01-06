@@ -1,12 +1,12 @@
-import { useState, useMemo } from 'react';
-import { 
-  format, 
-  startOfWeek, 
-  endOfWeek, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfYear, 
-  endOfYear, 
+import { useState, useMemo, useEffect } from 'react';
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfYear,
+  endOfYear,
   eachWeekOfInterval,
   eachMonthOfInterval,
   isWithinInterval,
@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Navigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -95,6 +96,11 @@ const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export default function Financeiro() {
   const { isAdmin } = useAuth();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader('Financeiro', 'Visão financeira completa do negócio');
+  }, [setHeader]);
   const { data: pedidos, isLoading: isLoadingPedidos } = usePedidos();
   
   // Estado para lançamentos
@@ -353,23 +359,6 @@ export default function Financeiro() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-            <TrendingUp className="h-6 w-6 text-primary" />
-            Financeiro
-          </h1>
-          <p className="text-muted-foreground">Visão financeira completa do negócio</p>
-        </div>
-        <Button onClick={() => {
-          setEditingLancamento(undefined);
-          setLancamentoDialogOpen(true);
-        }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Lançamento
-        </Button>
-      </div>
-
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="border-l-4 border-l-success">
@@ -573,10 +562,19 @@ export default function Financeiro() {
         <TabsContent value="lancamentos" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Lançamentos Financeiros
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Lançamentos Financeiros
+                </CardTitle>
+                <Button onClick={() => {
+                  setEditingLancamento(undefined);
+                  setLancamentoDialogOpen(true);
+                }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Lançamento
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[500px]">

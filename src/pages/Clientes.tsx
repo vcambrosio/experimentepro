@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, User, Building2, Phone, Mail, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Building2, Phone, Mail, ArrowUp, ArrowUpDown, ArrowDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useClientes, useDeleteCliente } from '@/hooks/useClientes';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +34,11 @@ type SortDirection = 'asc' | 'desc';
 
 export default function Clientes() {
   const navigate = useNavigate();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader('Clientes', 'Gerencie seus clientes');
+  }, [setHeader]);
   const { data: clientes, isLoading } = useClientes();
   const deleteCliente = useDeleteCliente();
   
@@ -101,19 +108,52 @@ export default function Clientes() {
     }
   };
 
+  const handleExportXLSX = () => {
+    if (!clientes || clientes.length === 0) {
+      return;
+    }
+
+    // Prepara os dados para exportação
+    const data = clientes.map((cliente) => ({
+      'Nome': cliente.nome,
+      'Tipo Pessoa': cliente.tipo_pessoa === 'juridica' ? 'Pessoa Jurídica' : 'Pessoa Física',
+      'CPF/CNPJ': cliente.cpf_cnpj || '',
+      'Contato': cliente.contato || '',
+      'Telefone': cliente.telefone || '',
+      'Email': cliente.email || '',
+      'Status': cliente.ativo ? 'Ativo' : 'Inativo',
+      'Setores': (cliente as any).setores_cliente?.map((s: any) => s.nome_setor).join('; ') || '',
+    }));
+
+    // Cria a planilha
+    const ws = XLSX.utils.json_to_sheet(data);
+    
+    // Ajusta a largura das colunas
+    const colWidths = [
+      { wch: 40 }, // Nome
+      { wch: 20 }, // Tipo Pessoa
+      { wch: 25 }, // CPF/CNPJ
+      { wch: 30 }, // Contato
+      { wch: 20 }, // Telefone
+      { wch: 35 }, // Email
+      { wch: 15 }, // Status
+      { wch: 40 }, // Setores
+    ];
+    ws['!cols'] = colWidths;
+
+    // Cria o workbook e adiciona a planilha
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+
+    // Gera o nome do arquivo com data atual
+    const fileName = `clientes_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Faz o download
+    XLSX.writeFile(wb, fileName);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Clientes</h1>
-          <p className="text-muted-foreground">Gerencie seus clientes</p>
-        </div>
-        <Button onClick={() => navigate('/clientes/novo')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Cliente
-        </Button>
-      </div>
-
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
@@ -126,6 +166,19 @@ export default function Clientes() {
                 className="pl-10"
               />
             </div>
+            <Button onClick={() => navigate('/clientes/novo')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Cliente
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportXLSX}
+              disabled={!clientes || clientes.length === 0}
+              title="Exportar todos os clientes para XLSX"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar XLSX
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -148,6 +201,7 @@ export default function Clientes() {
                       {getSortIcon('nome')}
                     </div>
                   </TableHead>
+                  <TableHead>Setores</TableHead>
                   <TableHead
                     className="cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => handleSort('tipo')}
@@ -202,7 +256,26 @@ export default function Clientes() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">
+                      <div className="flex flex-wrap gap-1">
+                        {(cliente as any).setores_cliente && (cliente as any).setores_cliente.length > 0 ? (
+                          (cliente as any).setores_cliente.map((setor: any, index: number) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {setor.nome_setor || `Setor ${index + 1}`}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={
+                          cliente.tipo_pessoa === 'juridica'
+                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                            : 'bg-orange-100 text-orange-800 hover:bg-orange-200'
+                        }
+                      >
                         {cliente.tipo_pessoa === 'juridica' ? 'Pessoa Jurídica' : 'Pessoa Física'}
                       </Badge>
                     </TableCell>
@@ -255,7 +328,7 @@ export default function Clientes() {
                 ))}
                 {filteredAndSortedClientes?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Nenhum cliente encontrado
                     </TableCell>
                   </TableRow>

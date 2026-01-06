@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft, Save, Loader2, Plus, Trash2, Building2 } from 'lucide-react';
 import { useCliente, useCreateCliente, useUpdateCliente, useSetoresCliente, useCreateSetor, useDeleteSetor } from '@/hooks/useClientes';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,6 +46,11 @@ type ClienteFormData = z.infer<typeof clienteSchema>;
 export default function ClienteForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader(id ? 'Editar Cliente' : 'Novo Cliente', id ? 'Atualize as informações do cliente' : 'Cadastre um novo cliente');
+  }, [id, setHeader]);
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get('returnTo');
   const isEditing = !!id;
@@ -203,19 +209,6 @@ export default function ClienteForm() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/clientes')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            {isEditing ? 'Editar Cliente' : 'Novo Cliente'}
-          </h1>
-          <p className="text-muted-foreground">
-            {isEditing ? 'Atualize as informações do cliente' : 'Cadastre um novo cliente'}
-          </p>
-        </div>
-      </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

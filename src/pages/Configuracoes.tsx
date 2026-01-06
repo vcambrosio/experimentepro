@@ -40,6 +40,7 @@ import {
 import { useConfiguracaoEmpresa, useUpdateConfiguracaoEmpresa } from '@/hooks/useConfiguracaoEmpresa';
 import { useUsers, useUpdateUserRole, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { useCategoriasFinanceiras, useCreateCategoriaFinanceira, useUpdateCategoriaFinanceira, useDeleteCategoriaFinanceira, useCreateLancamento, useLancamentosFinanceiros } from '@/hooks/useFinanceiro';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
@@ -118,6 +119,11 @@ type UploadType = 'logo_sistema' | 'logo_pdf';
 
 export default function Configuracoes() {
   const { user, profile, role, isAdmin, signOut, updatePassword } = useAuth();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader('Configurações', 'Configure o sistema e dados da empresa');
+  }, [setHeader]);
   const { data: config, isLoading } = useConfiguracaoEmpresa();
   const { data: users, isLoading: loadingUsers } = useUsers();
   const { data: categoriasFinanceiras, isLoading: loadingCategorias } = useCategoriasFinanceiras();
@@ -930,13 +936,6 @@ NOTA IMPORTANTE:
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-          <Settings className="h-6 w-6" />
-          Configurações
-        </h1>
-        <p className="text-muted-foreground">Configure o sistema e dados da empresa</p>
-      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-2'} lg:w-[1000px]`}>

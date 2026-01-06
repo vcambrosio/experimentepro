@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Package, ArrowUp, ArrowUpDown, ArrowDown, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, ArrowUp, ArrowUpDown, ArrowDown, Loader2, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useProdutos, useDeleteProduto } from '@/hooks/useProdutos';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -33,6 +35,11 @@ type SortDirection = 'asc' | 'desc';
 export default function Produtos() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader('Produtos', 'Gerencie seus produtos e serviços');
+  }, [setHeader]);
   const { data: produtos, isLoading } = useProdutos();
   const deleteProduto = useDeleteProduto();
   
@@ -109,19 +116,46 @@ export default function Produtos() {
     }).format(value);
   };
 
+  const handleExportXLSX = () => {
+    if (!produtos || produtos.length === 0) {
+      return;
+    }
+
+    // Prepara os dados para exportação
+    const data = produtos.map((produto) => ({
+      'Nome': produto.nome,
+      'Categoria': produto.categoria?.nome || 'Sem categoria',
+      'Descrição Padrão': produto.descricao_padrao || '',
+      'Valor Venda': produto.valor_venda,
+      'Status': produto.ativo ? 'Ativo' : 'Inativo',
+    }));
+
+    // Cria a planilha
+    const ws = XLSX.utils.json_to_sheet(data);
+    
+    // Ajusta a largura das colunas
+    const colWidths = [
+      { wch: 40 }, // Nome
+      { wch: 25 }, // Categoria
+      { wch: 50 }, // Descrição Padrão
+      { wch: 15 }, // Valor Venda
+      { wch: 15 }, // Status
+    ];
+    ws['!cols'] = colWidths;
+
+    // Cria o workbook e adiciona a planilha
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Produtos');
+
+    // Gera o nome do arquivo com data atual
+    const fileName = `produtos_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    // Faz o download
+    XLSX.writeFile(wb, fileName);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Produtos</h1>
-          <p className="text-muted-foreground">Gerencie seus produtos e serviços</p>
-        </div>
-        <Button onClick={() => navigate('/produtos/novo')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Produto
-        </Button>
-      </div>
-
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
@@ -134,6 +168,19 @@ export default function Produtos() {
                 className="pl-10"
               />
             </div>
+            <Button onClick={() => navigate('/produtos/novo')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo Produto
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportXLSX}
+              disabled={!produtos || produtos.length === 0}
+              title="Exportar todos os produtos para XLSX"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar XLSX
+            </Button>
           </div>
         </CardHeader>
         <CardContent>

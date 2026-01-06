@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Filter, FileText, ArrowRight, CheckCircle, XCircle, Clock, X, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Filter, FileText, ArrowRight, CheckCircle, XCircle, Clock, X, ArrowUp, ArrowUpDown, ArrowDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useOrcamentos, useDeleteOrcamento, useUpdateOrcamento, useConvertOrcamentoToPedido } from '@/hooks/useOrcamentos';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Orcamento, StatusOrcamento } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,6 +75,11 @@ type SortDirection = 'asc' | 'desc';
 
 export default function Orcamentos() {
   const { isAdmin } = useAuth();
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader('Orçamentos', 'Gerencie seus orçamentos e propostas');
+  }, [setHeader]);
   const { data: orcamentos, isLoading, error } = useOrcamentos();
   const deleteOrcamento = useDeleteOrcamento();
   const updateOrcamento = useUpdateOrcamento();
@@ -218,6 +225,56 @@ export default function Orcamentos() {
     }).format(value);
   };
 
+  const handleExportXLSX = () => {
+    if (!orcamentos || orcamentos.length === 0) {
+      return;
+    }
+
+    // Prepara os dados para exportação
+    const data = orcamentos.map((orcamento) => ({
+      'Número Orçamento': orcamento.numero_orcamento || '',
+      'Cliente': orcamento.cliente?.nome || '',
+      'Setor': orcamento.setor?.nome_setor || '',
+      'Responsável Setor': orcamento.setor?.responsavel || '',
+      'Contato Setor': orcamento.setor?.contato || '',
+      'Data Orçamento': format(new Date(orcamento.data_orcamento), 'dd/MM/yyyy', { locale: ptBR }),
+      'Data Entrega': orcamento.data_entrega ? format(new Date(orcamento.data_entrega + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : '',
+      'Hora Entrega': orcamento.hora_entrega || '',
+      'Status': statusLabels[orcamento.status],
+      'Valor Total': orcamento.valor_total,
+      'Descrição': orcamento.descricao || '',
+    }));
+
+    // Cria a planilha
+    const ws = XLSX.utils.json_to_sheet(data);
+    
+    // Ajusta a largura das colunas
+    const colWidths = [
+      { wch: 20 }, // Número Orçamento
+      { wch: 30 }, // Cliente
+      { wch: 25 }, // Setor
+      { wch: 20 }, // Responsável Setor
+      { wch: 20 }, // Contato Setor
+      { wch: 15 }, // Data Orçamento
+      { wch: 15 }, // Data Entrega
+      { wch: 15 }, // Hora Entrega
+      { wch: 15 }, // Status
+      { wch: 15 }, // Valor Total
+      { wch: 50 }, // Descrição
+    ];
+    ws['!cols'] = colWidths;
+
+    // Cria o workbook e adiciona a planilha
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Orçamentos');
+
+    // Gera o nome do arquivo com data atual
+    const fileName = `orcamentos_${format(new Date(), 'dd-MM-yyyy_HH-mm')}.xlsx`;
+
+    // Faz o download
+    XLSX.writeFile(wb, fileName);
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -231,20 +288,9 @@ export default function Orcamentos() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Orçamentos</h1>
-          <p className="text-muted-foreground">Gerencie seus orçamentos e propostas</p>
-        </div>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Orçamento
-        </Button>
-      </div>
-
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por cliente ou número..."
@@ -267,6 +313,19 @@ export default function Orcamentos() {
             <SelectItem value="perdido">Perdido</SelectItem>
           </SelectContent>
         </Select>
+        <Button onClick={handleCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Orçamento
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleExportXLSX}
+          disabled={!orcamentos || orcamentos.length === 0}
+          title="Exportar todos os orçamentos para XLSX"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Exportar XLSX
+        </Button>
       </div>
 
       {/* Table */}

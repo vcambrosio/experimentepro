@@ -285,7 +285,7 @@ function DroppableDay({
       ref={setNodeRef}
       onClick={onDayClick}
       className={cn(
-        "min-h-[80px] p-1 border rounded-lg cursor-pointer transition-colors",
+        "min-h-[115px] p-1 border rounded-lg cursor-pointer transition-colors",
         !isCurrentMonth && viewMode === 'month' && "bg-muted/30 opacity-50",
         isToday(day) && "border-primary border-2",
         isSelected && "ring-2 ring-primary",
@@ -600,17 +600,6 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
  
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
  
-  // Summary stats
-  const entregasHoje = itemsByDate[format(new Date(), 'yyyy-MM-dd')]?.filter(item => !isOrcamento(item)).length || 0;
-  const pendentesEsteMes = allItems.filter(item => 
-    !isOrcamento(item) &&
-    (item as Pedido).status === 'pendente' && 
-    isSameMonth(getItemDateTime(item), currentDate)
-  ).length || 0;
-  const totalEsteMes = allItems.filter(item => 
-    isSameMonth(getItemDateTime(item), currentDate)
-  ).length || 0;
- 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -621,48 +610,6 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
  
   return (
     <>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Entregas Hoje
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">
-              {entregasHoje}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pendentes Este Mês
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning-foreground">
-              {pendentesEsteMes}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Este Mês
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {totalEsteMes}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
- 
       {/* Calendar */}
       <Card>
         <CardHeader className="pb-4">
@@ -755,12 +702,12 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
                      
                     {/* Items indicators */}
                     <div className="space-y-0.5" onClick={(e) => e.stopPropagation()}>
-                      {dayItems.slice(0, viewMode === 'week' ? 4 : 2).map((item) => (
+                      {dayItems.slice(0, viewMode === 'week' ? 8 : 4).map((item) => (
                         <DraggableItem key={item.id} item={item} viewMode={viewMode} />
                       ))}
-                      {dayItems.length > (viewMode === 'week' ? 4 : 2) && (
+                      {dayItems.length > (viewMode === 'week' ? 8 : 4) && (
                         <div className="text-[10px] text-muted-foreground text-center">
-                          +{dayItems.length - (viewMode === 'week' ? 4 : 2)}
+                          +{dayItems.length - (viewMode === 'week' ? 8 : 4)}
                         </div>
                       )}
                     </div>

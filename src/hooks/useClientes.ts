@@ -9,11 +9,11 @@ export function useClientes() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('clientes')
-        .select('*')
+        .select('*, setores_cliente(*)')
         .order('nome');
       
       if (error) throw error;
-      return data as Cliente[];
+      return data as (Cliente & { setores_cliente?: SetorCliente[] })[];
     },
   });
 }

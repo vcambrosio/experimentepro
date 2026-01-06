@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { PageHeaderProvider } from "@/contexts/PageHeaderContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -46,9 +47,10 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
-          <ErrorBoundary>
-            <Suspense fallback={<LoadingFallback />}>
+        <PageHeaderProvider>
+          <AuthProvider>
+            <ErrorBoundary>
+              <Suspense fallback={<LoadingFallback />}>
               <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -135,7 +137,8 @@ const App = () => (
             </Suspense>
           </ErrorBoundary>
         </AuthProvider>
-      </BrowserRouter>
+      </PageHeaderProvider>
+    </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

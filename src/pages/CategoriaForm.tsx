@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { useCategoria, useCreateCategoria, useUpdateCategoria } from '@/hooks/useCategorias';
+import { usePageHeader } from '@/contexts/PageHeaderContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,11 @@ export default function CategoriaForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditing = !!id;
+  const { setHeader } = usePageHeader();
+
+  useEffect(() => {
+    setHeader(id ? 'Editar Categoria' : 'Nova Categoria', id ? 'Atualize as informações da categoria' : 'Cadastre uma nova categoria');
+  }, [id, setHeader]);
 
   const { data: categoria, isLoading } = useCategoria(id || '');
   const createCategoria = useCreateCategoria();
@@ -75,19 +81,6 @@ export default function CategoriaForm() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/categorias')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            {isEditing ? 'Editar Categoria' : 'Nova Categoria'}
-          </h1>
-          <p className="text-muted-foreground">
-            {isEditing ? 'Atualize as informações da categoria' : 'Cadastre uma nova categoria'}
-          </p>
-        </div>
-      </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
