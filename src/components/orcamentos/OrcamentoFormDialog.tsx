@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format, addDays } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2, UserPlus } from 'lucide-react';
+import { CalendarIcon, Plus, Trash2, Loader2, UserPlus, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientes, useSetoresCliente } from '@/hooks/useClientes';
 import { useProdutos } from '@/hooks/useProdutos';
@@ -69,6 +69,16 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
   const [descricao, setDescricao] = useState('');
   const [condicoesComerciais, setCondicoesComerciais] = useState('');
   const [itens, setItens] = useState<ItemForm[]>([]);
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newItem, setNewItem] = useState<ItemForm>({
+    produto_id: '',
+    categoria_id: '',
+    descricao_customizada: '',
+    quantidade: 1,
+    valor_unitario: 0,
+    observacoes: '',
+  });
   
   const { data: setores } = useSetoresCliente(clienteId);
   const { data: orcamentoCompleto } = useOrcamento(orcamento?.id || '');
@@ -126,6 +136,16 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
     setDescricao('');
     setCondicoesComerciais('');
     setItens([]);
+    setEditingItemIndex(null);
+    setShowAddForm(false);
+    setNewItem({
+      produto_id: '',
+      categoria_id: '',
+      descricao_customizada: '',
+      quantidade: 1,
+      valor_unitario: 0,
+      observacoes: '',
+    });
   };
 
   const handleCreateCliente = () => {
@@ -173,45 +193,84 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
     }
   }, [open, isEditing]);
 
-  const addItem = () => {
-    const novoItem = {
+  const handleAddItem = () => {
+    setEditingItemIndex(null);
+    setShowAddForm(true);
+    setNewItem({
       produto_id: '',
       categoria_id: '',
       descricao_customizada: '',
       quantidade: 1,
       valor_unitario: 0,
       observacoes: '',
-    };
-    
-    // Verifica se o último item está vazio e remove se estiver
-    const ultimoItem = itens[itens.length - 1];
-    if (ultimoItem && !ultimoItem.produto_id) {
-      // Remove o último item vazio e adiciona o novo
-      setItens([...itens.slice(0, -1), novoItem]);
-    } else {
-      // Adiciona o novo item normalmente
-      setItens([...itens, novoItem]);
-    }
+    });
   };
 
-  const removeItem = (index: number) => {
+  const handleSaveItem = () => {
+    if (!newItem.produto_id) {
+      alert('Por favor, selecione um produto.');
+      return;
+    }
+
+    if (editingItemIndex !== null) {
+      // Editando item existente
+      const updatedItens = [...itens];
+      updatedItens[editingItemIndex] = newItem;
+      setItens(updatedItens);
+    } else {
+      // Adicionando novo item
+      setItens([...itens, newItem]);
+    }
+
+    // Limpa o formulário
+    setNewItem({
+      produto_id: '',
+      categoria_id: '',
+      descricao_customizada: '',
+      quantidade: 1,
+      valor_unitario: 0,
+      observacoes: '',
+    });
+    setEditingItemIndex(null);
+    setShowAddForm(false);
+  };
+
+  const handleEditItem = (index: number) => {
+    setEditingItemIndex(index);
+    setShowAddForm(false);
+    setNewItem({ ...itens[index] });
+  };
+
+  const handleRemoveItem = (index: number) => {
     setItens(itens.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: keyof ItemForm, value: string | number) => {
-    const newItens = [...itens];
-    newItens[index] = { ...newItens[index], [field]: value };
+  const handleCancelEdit = () => {
+    setEditingItemIndex(null);
+    setShowAddForm(false);
+    setNewItem({
+      produto_id: '',
+      categoria_id: '',
+      descricao_customizada: '',
+      quantidade: 1,
+      valor_unitario: 0,
+      observacoes: '',
+    });
+  };
+
+  const updateNewItem = (field: keyof ItemForm, value: string | number) => {
+    const updated = { ...newItem, [field]: value };
     
     if (field === 'produto_id') {
       const produto = produtos?.find(p => p.id === value);
       if (produto) {
-        newItens[index].categoria_id = produto.categoria_id;
-        newItens[index].valor_unitario = produto.valor_venda;
-        newItens[index].descricao_customizada = produto.descricao_padrao || '';
+        updated.categoria_id = produto.categoria_id;
+        updated.valor_unitario = produto.valor_venda;
+        updated.descricao_customizada = produto.descricao_padrao || '';
       }
     }
     
-    setItens(newItens);
+    setNewItem(updated);
   };
 
   const calcularTotal = (itensList: ItemForm[] = itens) => {
@@ -221,15 +280,6 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
   const handleSubmit = async () => {
     if (!clienteId || itens.length === 0) return;
 
-    // Filtra apenas itens válidos (com produto_id selecionado)
-    const itensValidos = itens.filter(item => item.produto_id && item.produto_id !== '');
-
-    // Permite salvar se houver pelo menos um item válido, mesmo com itens vazios
-    if (itensValidos.length === 0) {
-      alert('Por favor, selecione um produto para pelo menos um item do orçamento.');
-      return;
-    }
-
     const orcamentoData = {
       numero_orcamento: orcamento?.numero_orcamento || generateNumeroOrcamento(),
       data_orcamento: dataOrcamento.toISOString().split('T')[0],
@@ -237,7 +287,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       setor_id: setorId || null,
       descricao: descricao || null,
       condicoes_comerciais: condicoesComerciais || null,
-      valor_total: calcularTotal(itensValidos),
+      valor_total: calcularTotal(itens),
       status: 'pendente' as const,
       validade: validade ? validade.toISOString().split('T')[0] : null,
       data_entrega: dataEntrega ? dataEntrega.toISOString().split('T')[0] : null,
@@ -245,7 +295,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       created_by: user?.id || '',
     };
 
-    const itensData = itensValidos.map(item => ({
+    const itensData = itens.map(item => ({
       produto_id: item.produto_id,
       categoria_id: item.categoria_id,
       descricao_customizada: item.descricao_customizada || null,
@@ -462,112 +512,157 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label className="text-base font-medium">Itens do Orçamento</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar Item
-              </Button>
+              {itens.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddItem}
+                  className="bg-muted/50 hover:bg-muted/70"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo Item
+                </Button>
+              )}
             </div>
 
-            {itens.length === 0 ? (
-              <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                <p className="text-muted-foreground">Nenhum item adicionado</p>
-                <Button type="button" variant="link" onClick={addItem}>
-                  Adicionar primeiro item
-                </Button>
-              </div>
-            ) : (
-              <ScrollArea className="h-[500px] pr-4">
-                <div className="space-y-4">
-                  {itens.map((item, index) => (
-                  <div key={index} className="p-4 border rounded-lg space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm text-muted-foreground">Item {index + 1}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeItem(index)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+            {/* Formulário de Adição/Edição de Item */}
+            {(editingItemIndex !== null || showAddForm || itens.length === 0) && (
+              <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Produto *</Label>
+                    <Select
+                      value={newItem.produto_id}
+                      onValueChange={(value) => updateNewItem('produto_id', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o produto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {produtos?.filter(p => p.ativo).map((produto) => (
+                          <SelectItem key={produto.id} value={produto.id}>
+                            {produto.nome} - {formatCurrency(produto.valor_venda)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Produto *</Label>
-                        <Select
-                          value={item.produto_id}
-                          onValueChange={(value) => updateItem(index, 'produto_id', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o produto" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {produtos?.filter(p => p.ativo).map((produto) => (
-                              <SelectItem key={produto.id} value={produto.id}>
-                                {produto.nome} - {formatCurrency(produto.valor_venda)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Quantidade *</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantidade}
-                            onChange={(e) => updateItem(index, 'quantidade', parseInt(e.target.value) || 1)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Valor Unit.</Label>
-                          <Input
-                            type="text"
-                            step="0.01"
-                            min="0"
-                            value={formatCurrency(item.valor_unitario)}
-                            onChange={(e) => {
-                              // Remove caracteres não numéricos exceto vírgula e ponto
-                              const value = e.target.value.replace(/[^\d,.-]/g, '');
-                              // Converte vírgula para ponto e para float
-                              const numValue = parseFloat(value.replace(',', '.')) || 0;
-                              updateItem(index, 'valor_unitario', numValue);
-                            }}
-                            placeholder="R$ 0,00"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Descrição / Observações</Label>
-                      <Textarea
-                        placeholder="Descrição customizada ou observações do item"
-                        value={item.descricao_customizada}
-                        onChange={(e) => updateItem(index, 'descricao_customizada', e.target.value)}
-                        rows={2}
+                      <Label>Quantidade *</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={newItem.quantidade}
+                        onChange={(e) => updateNewItem('quantidade', parseInt(e.target.value) || 1)}
                       />
                     </div>
-
-                    <div className="text-right text-sm">
-                      <span className="text-muted-foreground">Subtotal: </span>
-                      <span className="font-medium">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
-                    </div>
-                  </div>
-                  ))}
-                  
-                  <div className="flex justify-end p-4 bg-muted rounded-lg sticky bottom-0">
-                    <div className="text-right">
-                      <span className="text-muted-foreground">Total do Orçamento: </span>
-                      <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal(itens.filter(item => item.produto_id && item.produto_id !== '')))}</span>
+                    <div className="space-y-2">
+                      <Label>Valor Unit.</Label>
+                      <Input
+                        type="text"
+                        step="0.01"
+                        min="0"
+                        value={formatCurrency(newItem.valor_unitario)}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^\d,.-]/g, '');
+                          const numValue = parseFloat(value.replace(',', '.')) || 0;
+                          updateNewItem('valor_unitario', numValue);
+                        }}
+                        placeholder="R$ 0,00"
+                      />
                     </div>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Descrição / Observações</Label>
+                  <Input
+                    placeholder="Descrição customizada ou observações do item"
+                    value={newItem.descricao_customizada}
+                    onChange={(e) => updateNewItem('descricao_customizada', e.target.value)}
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  {editingItemIndex !== null && (
+                    <Button type="button" variant="outline" onClick={handleCancelEdit}>
+                      Cancelar
+                    </Button>
+                  )}
+                  <Button type="button" onClick={handleSaveItem}>
+                    {editingItemIndex !== null ? 'Salvar Alterações' : 'Adicionar Item'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Lista de Itens Adicionados */}
+            {itens.length > 0 && (
+              <ScrollArea className="h-[250px] pr-4">
+                <div className="space-y-2">
+                  {itens.map((item, index) => (
+                    <div key={index} className="p-3 border rounded-lg bg-card hover:bg-muted/50 transition-colors">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">Item {index + 1}</span>
+                            <span className="text-xs text-muted-foreground">•</span>
+                            <span className="text-sm text-muted-foreground truncate">
+                              {produtos?.find(p => p.id === item.produto_id)?.nome || 'Produto não encontrado'}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <div className="text-sm text-muted-foreground">
+                              {item.quantidade}x {formatCurrency(item.valor_unitario)}
+                              {item.descricao_customizada && (
+                                <span className="ml-2 text-xs italic">• {item.descricao_customizada}</span>
+                              )}
+                            </div>
+                            <div className="text-sm font-medium text-primary">
+                              Subtotal: {formatCurrency(item.quantidade * item.valor_unitario)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditItem(index)}
+                            className="h-8 w-8"
+                            title="Editar item"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveItem(index)}
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            title="Remover item"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </ScrollArea>
+            )}
+
+            {/* Total */}
+            {itens.length > 0 && (
+              <div className="flex justify-end p-4 bg-muted rounded-lg">
+                <div className="text-right">
+                  <span className="text-muted-foreground">Total do Orçamento: </span>
+                  <span className="text-xl font-semibold text-primary">{formatCurrency(calcularTotal(itens))}</span>
+                </div>
+              </div>
             )}
           </div>
         </div>

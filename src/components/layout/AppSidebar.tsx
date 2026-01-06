@@ -71,7 +71,7 @@ export function AppSidebar() {
             <img
               src={config.logo_url}
               alt="Logo"
-              className="h-10 w-10 rounded-lg object-contain bg-primary"
+              className="h-10 w-10 rounded-lg object-contain"
             />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
