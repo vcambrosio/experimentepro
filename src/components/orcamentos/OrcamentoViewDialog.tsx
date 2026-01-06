@@ -220,7 +220,7 @@ export function OrcamentoViewDialog({ open, onOpenChange, orcamentoId }: Orcamen
                 <div>
                   <p className="text-sm text-muted-foreground">Data e Hora de Entrega</p>
                   <p className="font-medium">
-                    {orcamento.data_entrega && format(new Date(orcamento.data_entrega), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                    {orcamento.data_entrega && format(new Date(orcamento.data_entrega + 'T00:00:00'), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                     {orcamento.data_entrega && orcamento.hora_entrega && ' às '}
                     {orcamento.hora_entrega}
                   </p>

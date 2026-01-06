@@ -378,7 +378,7 @@ export default function Orcamentos() {
                     {orcamento.data_entrega && (
                       <div>
                         <p className="font-medium">
-                          {format(new Date(orcamento.data_entrega), 'dd/MM/yyyy', { locale: ptBR })}
+                          {format(new Date(orcamento.data_entrega + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
                         </p>
                         {orcamento.hora_entrega && (
                           <p className="text-sm text-muted-foreground">{orcamento.hora_entrega}</p>
@@ -441,8 +441,7 @@ export default function Orcamentos() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleEdit(orcamento)}
-                        title="Editar"
-                        disabled={orcamento.status === 'aprovado'}
+                        title={orcamento.status === 'aprovado' ? 'Alterar data de entrega' : 'Editar'}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>

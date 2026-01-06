@@ -48,7 +48,7 @@ import {
 } from '@dnd-kit/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUpdatePedido, useDeletePedido } from '@/hooks/usePedidos';
-import { useDeleteOrcamento } from '@/hooks/useOrcamentos';
+import { useDeleteOrcamento, useUpdateOrcamento } from '@/hooks/useOrcamentos';
 import { Pedido, StatusPedido, Orcamento, StatusOrcamento } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -172,7 +172,8 @@ const getItemDateTime = (item: CalendarItem): Date => {
   if (isOrcamento(item)) {
     // Para orçamentos, usa data_entrega se definida, senão usa data_orcamento
     const dataString = item.data_entrega || item.data_orcamento;
-    const data = dataString ? new Date(dataString) : new Date();
+    // Cria a data no fuso horário local
+    const data = dataString ? new Date(dataString + 'T00:00:00') : new Date();
     if (item.hora_entrega) {
       const [hours, minutes] = item.hora_entrega.split(':').map(Number);
       data.setHours(hours, minutes);
@@ -303,6 +304,7 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
   const updatePedido = useUpdatePedido();
   const deletePedido = useDeletePedido();
   const deleteOrcamento = useDeleteOrcamento();
+  const updateOrcamento = useUpdateOrcamento();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -313,12 +315,14 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
   
   // Drag and drop state
   const [activeDragPedido, setActiveDragPedido] = useState<Pedido | null>(null);
+  const [activeDragOrcamento, setActiveDragOrcamento] = useState<Orcamento | null>(null);
   const [rescheduleDialog, setRescheduleDialog] = useState<{
     open: boolean;
     pedido: Pedido | null;
+    orcamento: Orcamento | null;
     newDate: Date | null;
     newTime: string;
-  }>({ open: false, pedido: null, newDate: null, newTime: '12:00' });
+  }>({ open: false, pedido: null, orcamento: null, newDate: null, newTime: '12:00' });
   
   // Delete confirmation state
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -451,35 +455,47 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const pedido = pedidos.find(p => p.id === active.id);
+    const orcamento = orcamentos?.find(o => o.id === active.id);
+    
     if (pedido) {
       setActiveDragPedido(pedido);
+    } else if (orcamento) {
+      setActiveDragOrcamento(orcamento);
     }
   };
- 
+  
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDragPedido(null);
+    setActiveDragOrcamento(null);
      
     if (!over) return;
      
-    const pedidoId = active.id as string;
+    const itemId = active.id as string;
     const newDateKey = over.id as string;
-    const pedido = pedidos.find(p => p.id === pedidoId);
+    const pedido = pedidos.find(p => p.id === itemId);
+    const orcamento = orcamentos?.find(o => o.id === itemId);
     
-    // Only allow dragging pedidos, not orcamentos
-    if (!pedido) return;
-     
-    const currentDateKey = format(new Date(pedido.data_hora_entrega), 'yyyy-MM-dd');
+    // Check if it's a pedido or orcamento
+    if (!pedido && !orcamento) return;
+    
+    const isPedido = !!pedido;
+    const item = isPedido ? pedido : orcamento;
+    const itemDateTime = getItemDateTime(item!);
+    const currentDateKey = format(itemDateTime, 'yyyy-MM-dd');
      
     // Only show dialog if dropping on a different day
     if (currentDateKey !== newDateKey) {
-      // Use parseISO to avoid timezone issues
-      const newDate = parseISO(newDateKey);
-      const currentTime = format(new Date(pedido.data_hora_entrega), 'HH:mm');
+      // Create date in UTC to avoid timezone issues
+      const [year, month, day] = newDateKey.split('-').map(Number);
+      const currentTime = format(itemDateTime, 'HH:mm');
+      const [hours, minutes] = currentTime.split(':').map(Number);
+      const newDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
        
       setRescheduleDialog({
         open: true,
-        pedido,
+        pedido: pedido || null,
+        orcamento: orcamento || null,
         newDate,
         newTime: currentTime,
       });
@@ -490,40 +506,60 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
   };
  
   const confirmReschedule = async () => {
-    if (!rescheduleDialog.pedido || !rescheduleDialog.newDate) return;
-     
-    const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
-    const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
- 
-    try {
-      await updatePedido.mutateAsync({
-        id: rescheduleDialog.pedido.id,
-        data_hora_entrega: newDateTime.toISOString(),
-      });
-       
-      setRescheduleDialog({ open: false, pedido: null, newDate: null, newTime: '12:00' });
-    } catch (error) {
-      console.error('Error rescheduling:', error);
-    }
-  };
- 
-  const openEditAfterReschedule = async () => {
-    if (!rescheduleDialog.pedido || !rescheduleDialog.newDate) return;
-      
+    if (!rescheduleDialog.newDate) return;
+    
     const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
     const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
   
     try {
-      await updatePedido.mutateAsync({
-        id: rescheduleDialog.pedido.id,
-        data_hora_entrega: newDateTime.toISOString(),
-      });
+      if (rescheduleDialog.pedido) {
+        await updatePedido.mutateAsync({
+          id: rescheduleDialog.pedido.id,
+          data_hora_entrega: newDateTime.toISOString(),
+        });
+      } else if (rescheduleDialog.orcamento) {
+        // Para orçamentos, salva apenas a data no formato yyyy-MM-dd
+        await updateOrcamento.mutateAsync({
+          id: rescheduleDialog.orcamento.id,
+          data_entrega: format(newDateTime, 'yyyy-MM-dd'),
+          hora_entrega: rescheduleDialog.newTime,
+        });
+      }
+       
+      setRescheduleDialog({ open: false, pedido: null, orcamento: null, newDate: null, newTime: '12:00' });
+    } catch (error) {
+      console.error('Error rescheduling:', error);
+    }
+  };
+  
+  const openEditAfterReschedule = async () => {
+    if (!rescheduleDialog.newDate) return;
         
-      // Open edit dialog
-      setSelectedPedido(rescheduleDialog.pedido);
-      setSelectedDate(rescheduleDialog.newDate);
-      setRescheduleDialog({ open: false, pedido: null, newDate: null, newTime: '12:00' });
-      setFormDialogOpen(true);
+    const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
+    const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
+    
+    try {
+      if (rescheduleDialog.pedido) {
+        await updatePedido.mutateAsync({
+          id: rescheduleDialog.pedido.id,
+          data_hora_entrega: newDateTime.toISOString(),
+        });
+        
+        // Open edit dialog
+        setSelectedPedido(rescheduleDialog.pedido);
+        setSelectedDate(rescheduleDialog.newDate);
+        setRescheduleDialog({ open: false, pedido: null, orcamento: null, newDate: null, newTime: '12:00' });
+        setFormDialogOpen(true);
+      } else if (rescheduleDialog.orcamento) {
+        // Para orçamentos, salva apenas a data no formato yyyy-MM-dd
+        await updateOrcamento.mutateAsync({
+          id: rescheduleDialog.orcamento.id,
+          data_entrega: format(newDateTime, 'yyyy-MM-dd'),
+          hora_entrega: rescheduleDialog.newTime,
+        });
+        
+        setRescheduleDialog({ open: false, pedido: null, orcamento: null, newDate: null, newTime: '12:00' });
+      }
     } catch (error) {
       console.error('Error rescheduling:', error);
     }
@@ -745,6 +781,17 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
                   </div>
                 </div>
               )}
+              {activeDragOrcamento && (
+                <div className={cn(
+                  "text-[10px] px-2 py-1 rounded border-l-2 shadow-lg bg-card",
+                  orcamentoStatusColors[activeDragOrcamento.status]
+                )}>
+                  <div className="font-medium">
+                    <span className="font-bold mr-1">ORC</span>
+                    {format(getItemDateTime(activeDragOrcamento), 'HH:mm')} - {activeDragOrcamento.cliente?.nome || ''}
+                  </div>
+                </div>
+              )}
             </DragOverlay>
           </DndContext>
         </CardContent>
@@ -873,10 +920,13 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Move className="h-5 w-5 text-primary" />
-              Reagendar Pedido de Evento ou Cesta
+              {rescheduleDialog.orcamento ? 'Reagendar Orçamento' : 'Reagendar Pedido de Evento ou Cesta'}
             </DialogTitle>
             <DialogDescription>
-              Confirme a nova data e horário para o pedido de evento ou cesta de <strong>{rescheduleDialog.pedido?.cliente?.nome}</strong>
+              {rescheduleDialog.orcamento
+                ? <>Confirme a nova data e horário para o orçamento de <strong>{rescheduleDialog.orcamento.cliente?.nome}</strong></>
+                : <>Confirme a nova data e horário para o pedido de evento ou cesta de <strong>{rescheduleDialog.pedido?.cliente?.nome}</strong></>
+              }
             </DialogDescription>
           </DialogHeader>
           
@@ -900,15 +950,17 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
           </div>
           
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setRescheduleDialog({ open: false, pedido: null, newDate: null, newTime: '12:00' })}>
+            <Button variant="outline" onClick={() => setRescheduleDialog({ open: false, pedido: null, orcamento: null, newDate: null, newTime: '12:00' })}>
               Cancelar
             </Button>
-            <Button variant="secondary" onClick={openEditAfterReschedule} disabled={updatePedido.isPending}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Reagendar e Editar
-            </Button>
-            <Button onClick={confirmReschedule} disabled={updatePedido.isPending}>
-              {updatePedido.isPending ? (
+            {!rescheduleDialog.orcamento && (
+              <Button variant="secondary" onClick={openEditAfterReschedule} disabled={updatePedido.isPending}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Reagendar e Editar
+              </Button>
+            )}
+            <Button onClick={confirmReschedule} disabled={updatePedido.isPending || updateOrcamento.isPending}>
+              {(updatePedido.isPending || updateOrcamento.isPending) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 'Confirmar'

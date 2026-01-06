@@ -107,8 +107,8 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       if (orcamento && orcamentoCompleto) {
         setClienteId(orcamento.cliente_id);
         setSetorId(orcamento.setor_id || '');
-        setDataOrcamento(new Date(orcamento.data_orcamento));
-        setDataEntrega(orcamento.data_entrega ? new Date(orcamento.data_entrega) : undefined);
+        setDataOrcamento(new Date(orcamento.data_orcamento + 'T00:00:00'));
+        setDataEntrega(orcamento.data_entrega ? new Date(orcamento.data_entrega + 'T00:00:00') : undefined);
         setHoraEntrega(orcamento.hora_entrega || '');
         setDescricao(orcamento.descricao || '');
         setCondicoesComerciais(orcamento.condicoes_comerciais || '');
@@ -303,16 +303,27 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
   const handleSubmit = async () => {
     if (!clienteId || itens.length === 0) return;
 
+    // Se estiver editando um orçamento aprovado, atualiza apenas data e hora de entrega
+    if (isEditing && orcamento && orcamento.status === 'aprovado') {
+      await updateOrcamento.mutateAsync({
+        id: orcamento.id,
+        data_entrega: dataEntrega ? format(dataEntrega, 'yyyy-MM-dd') : null,
+        hora_entrega: horaEntrega || null,
+      });
+      onOpenChange(false);
+      return;
+    }
+
     const orcamentoData = {
       numero_orcamento: orcamento?.numero_orcamento || generateNumeroOrcamento(),
-      data_orcamento: dataOrcamento.toISOString().split('T')[0],
+      data_orcamento: format(dataOrcamento, 'yyyy-MM-dd'),
       cliente_id: clienteId,
       setor_id: setorId || null,
       descricao: descricao || null,
       condicoes_comerciais: condicoesComerciais || null,
       valor_total: calcularTotal(itens),
       status: 'pendente' as const,
-      data_entrega: dataEntrega ? dataEntrega.toISOString().split('T')[0] : null,
+      data_entrega: dataEntrega ? format(dataEntrega, 'yyyy-MM-dd') : null,
       hora_entrega: horaEntrega || null,
       created_by: user?.id || '',
     };
@@ -370,7 +381,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
               <Label htmlFor="cliente">Cliente *</Label>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <Select value={clienteId} onValueChange={setClienteId}>
+                  <Select value={clienteId} onValueChange={setClienteId} disabled={isEditing && orcamento?.status === 'aprovado'}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o cliente" />
                     </SelectTrigger>
@@ -389,6 +400,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                   size="icon"
                   onClick={handleCreateCliente}
                   title="Criar novo cliente"
+                  disabled={isEditing && orcamento?.status === 'aprovado'}
                 >
                   <UserPlus className="h-4 w-4" />
                 </Button>
@@ -399,7 +411,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
               <Label htmlFor="setor">Setor</Label>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <Select value={setorId} onValueChange={setSetorId} disabled={!clienteId}>
+                  <Select value={setorId} onValueChange={setSetorId} disabled={!clienteId || (isEditing && orcamento?.status === 'aprovado')}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o setor (opcional)" />
                     </SelectTrigger>
@@ -412,7 +424,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                     </SelectContent>
                   </Select>
                 </div>
-                {setorId && (
+                {setorId && !(isEditing && orcamento?.status === 'aprovado') && (
                   <Button
                     type="button"
                     variant="outline"
@@ -435,6 +447,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                 <Button
                   variant="outline"
                   className="w-full justify-start text-left font-normal"
+                  disabled={isEditing && orcamento?.status === 'aprovado'}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {format(dataOrcamento, 'PPP', { locale: ptBR })}
@@ -479,6 +492,13 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                   />
                 </PopoverContent>
               </Popover>
+              {isEditing && (
+                <p className="text-xs text-muted-foreground">
+                  {orcamento?.status === 'aprovado'
+                    ? 'Orçamento aprovado: você pode alterar a data de entrega, mas não os itens.'
+                    : 'Orçamento pendente: você pode alterar todos os campos.'}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -500,6 +520,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
               rows={3}
+              disabled={isEditing && orcamento?.status === 'aprovado'}
             />
           </div>
 
@@ -511,6 +532,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
               value={condicoesComerciais}
               onChange={(e) => setCondicoesComerciais(e.target.value)}
               rows={3}
+              disabled={isEditing && orcamento?.status === 'aprovado'}
             />
           </div>
 
@@ -518,7 +540,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label className="text-base font-medium">Itens do Orçamento</Label>
-              {itens.length > 0 && (
+              {itens.length > 0 && !(isEditing && orcamento?.status === 'aprovado') && (
                 <Button
                   type="button"
                   variant="outline"
@@ -533,7 +555,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
             </div>
 
             {/* Formulário de Adição/Edição de Item */}
-            {(editingItemIndex !== null || showAddForm || itens.length === 0) && (
+            {(editingItemIndex !== null || showAddForm || itens.length === 0) && !(isEditing && orcamento?.status === 'aprovado') && (
               <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -630,28 +652,30 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                             </div>
                           </div>
                         </div>
-                        <div className="flex gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditItem(index)}
-                            className="h-8 w-8"
-                            title="Editar item"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveItem(index)}
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            title="Remover item"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        {!(isEditing && orcamento?.status === 'aprovado') && (
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditItem(index)}
+                              className="h-8 w-8"
+                              title="Editar item"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveItem(index)}
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              title="Remover item"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -698,7 +722,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || !clienteId || itens.length === 0}
+            disabled={isSubmitting || !clienteId || (itens.length === 0 && !(isEditing && orcamento?.status === 'aprovado'))}
           >
             {isSubmitting ? (
               <>
@@ -706,7 +730,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                 Salvando...
               </>
             ) : (
-              isEditing ? 'Salvar Alterações' : 'Criar Orçamento'
+              isEditing && orcamento?.status === 'aprovado' ? 'Salvar Data de Entrega' : (isEditing ? 'Salvar Alterações' : 'Criar Orçamento')
             )}
           </Button>
         </DialogFooter>
