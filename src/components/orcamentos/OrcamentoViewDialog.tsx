@@ -194,11 +194,6 @@ export function OrcamentoViewDialog({ open, onOpenChange, orcamentoId }: Orcamen
                   <p className="font-medium">
                     {format(new Date(orcamento.data_orcamento), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                   </p>
-                  {orcamento.validade && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Válido até: {format(new Date(orcamento.validade), 'dd/MM/yyyy', { locale: ptBR })}
-                    </p>
-                  )}
                 </div>
               </div>
 

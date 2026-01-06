@@ -224,60 +224,62 @@ export default function ClienteForm() {
               <CardTitle>Informações Básicas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="nome"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nome do cliente" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="tipo_pessoa"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Pessoa *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+              <div className="grid gap-4 md:grid-cols-3">
+                <FormField
+                  control={form.control}
+                  name="nome"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome *</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tipo" />
-                        </SelectTrigger>
+                        <Input placeholder="Nome do cliente" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="fisica">Pessoa Física</SelectItem>
-                        <SelectItem value="juridica">Pessoa Jurídica</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="cpf_cnpj"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {form.watch('tipo_pessoa') === 'juridica' ? 'CNPJ' : 'CPF'}
-                    </FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder={form.watch('tipo_pessoa') === 'juridica' ? '00.000.000/0000-00' : '000.000.000-00'} 
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="tipo_pessoa"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Pessoa *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o tipo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="fisica">Pessoa Física</SelectItem>
+                          <SelectItem value="juridica">Pessoa Jurídica</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="cpf_cnpj"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {form.watch('tipo_pessoa') === 'juridica' ? 'CNPJ' : 'CPF'}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={form.watch('tipo_pessoa') === 'juridica' ? '00.000.000/0000-00' : '000.000.000-00'}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -309,11 +311,11 @@ export default function ClienteForm() {
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon"
                   onClick={handleAddSetor}
                   disabled={!novoSetor || createSetor.isPending}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4 mr-2" />
+                  Incluir novo setor
                 </Button>
               </div>
 
@@ -390,20 +392,20 @@ export default function ClienteForm() {
               <CardTitle>Contato</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="contato"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contato</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nome do contato" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
+                <FormField
+                  control={form.control}
+                  name="contato"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contato</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nome do contato" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="telefone"
@@ -417,7 +419,6 @@ export default function ClienteForm() {
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="email"

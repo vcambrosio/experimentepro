@@ -116,12 +116,16 @@ export default function Pedidos() {
     }
   }, []);
 
-  // Filtra apenas pedidos de Evento ou Cesta (data de entrega diferente da data de criação)
+  // Filtra apenas pedidos de Evento ou Cesta (tipo_pedido = 'evento_cesta')
   const pedidosEventoCesta = pedidos?.filter(pedido => {
-    const dataCriacao = new Date(pedido.created_at);
-    const dataEntrega = new Date(pedido.data_hora_entrega);
-    // Considera como Evento ou Cesta se a data de entrega for diferente da data de criação
-    return dataCriacao.toDateString() !== dataEntrega.toDateString();
+    // Se tipo_pedido estiver definido, usa o novo campo
+    if (pedido.tipo_pedido !== undefined) {
+      return pedido.tipo_pedido === 'evento_cesta';
+    }
+    // Fallback para pedidos antigos sem tipo_pedido definido
+    // Considera como Evento/Cesta se tiver setor_id definido OU se tiver orcamento_id
+    // Pedidos sem setor e sem orçamento são considerados vendas de loja
+    return !!pedido.setor_id || !!pedido.orcamento_id;
   });
 
   const filteredAndSortedPedidos = useMemo(() => {

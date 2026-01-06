@@ -117,6 +117,33 @@ export function useDeleteProduto() {
   
   return useMutation({
     mutationFn: async (id: string) => {
+      // Verificar se o produto está sendo usado em orçamentos
+      const { data: itensOrcamento, error: errorOrcamento } = await supabase
+        .from('itens_orcamento')
+        .select('orcamento_id')
+        .eq('produto_id', id)
+        .limit(1);
+      
+      if (errorOrcamento) throw errorOrcamento;
+      
+      if (itensOrcamento && itensOrcamento.length > 0) {
+        throw new Error('Este produto não pode ser excluído pois está sendo usado em orçamentos.');
+      }
+      
+      // Verificar se o produto está sendo usado em pedidos
+      const { data: itensPedido, error: errorPedido } = await supabase
+        .from('itens_pedido')
+        .select('pedido_id')
+        .eq('produto_id', id)
+        .limit(1);
+      
+      if (errorPedido) throw errorPedido;
+      
+      if (itensPedido && itensPedido.length > 0) {
+        throw new Error('Este produto não pode ser excluído pois está sendo usado em pedidos ou vendas.');
+      }
+      
+      // Se não houver dependências, prosseguir com a exclusão
       const { error } = await supabase
         .from('produtos')
         .delete()
@@ -129,7 +156,7 @@ export function useDeleteProduto() {
       toast.success('Produto excluído com sucesso!');
     },
     onError: (error) => {
-      toast.error('Erro ao excluir produto: ' + error.message);
+      toast.error(error.message || 'Erro ao excluir produto');
     },
   });
 }

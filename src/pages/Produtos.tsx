@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Package, ArrowUp, ArrowUpDown, ArrowDown } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, ArrowUp, ArrowUpDown, ArrowDown, Loader2 } from 'lucide-react';
 import { useProdutos, useDeleteProduto } from '@/hooks/useProdutos';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -259,13 +259,19 @@ export default function Produtos() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir produto?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O produto será removido permanentemente.
+              Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.
+              <br /><br />
+              <strong>Atenção:</strong> Se este produto estiver sendo usado em orçamentos, pedidos ou vendas, a exclusão não será permitida.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
+              {deleteProduto.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Excluir'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

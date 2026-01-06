@@ -61,13 +61,31 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Visão geral do seu negócio</p>
       </div>
 
-      {/* Calendário - Apenas pedidos de Evento ou Cesta (exclui vendas de loja) */}
+      {/* Calendário - Pedidos de Evento ou Cesta e Orçamentos de Cestas/Coffee Break */}
       <CalendarioWidget
         pedidos={pedidos?.filter(pedido => {
           const dataCriacao = new Date(pedido.created_at);
           const dataEntrega = new Date(pedido.data_hora_entrega);
           // Exclui vendas de loja (onde data de entrega é igual à data de criação)
           return dataCriacao.toDateString() !== dataEntrega.toDateString();
+        }) || []}
+        orcamentos={orcamentos?.filter(orcamento => {
+          // Filtra orçamentos com data_entrega definida
+          if (!orcamento.data_entrega) {
+            return false;
+          }
+          
+          // Filtra por categoria (apenas cestas e coffee break)
+          if (orcamento.itens && orcamento.itens.length > 0) {
+            const categoriaNome = orcamento.itens[0].categoria?.nome?.toLowerCase() || '';
+            return categoriaNome.includes('cesta') ||
+                   categoriaNome.includes('basket') ||
+                   categoriaNome.includes('coffee') ||
+                   categoriaNome.includes('café') ||
+                   categoriaNome.includes('cafe');
+          }
+          
+          return false;
         }) || []}
         isLoading={isLoading}
       />

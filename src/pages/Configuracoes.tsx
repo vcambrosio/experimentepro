@@ -95,7 +95,6 @@ const empresaSchema = z.object({
   telefone: z.string().optional(),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   endereco: z.string().optional(),
-  validade_orcamento_dias: z.coerce.number().min(1, 'Mínimo 1 dia').max(365, 'Máximo 365 dias'),
 });
 
 type EmpresaFormData = z.infer<typeof empresaSchema>;
@@ -172,6 +171,7 @@ export default function Configuracoes() {
   }>({ open: false, type: 'logo_sistema' });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
   const [userDialog, setUserDialog] = useState<{ open: boolean }>({ open: false });
   const [categoriaDialog, setCategoriaDialog] = useState<{
     open: boolean;
@@ -185,6 +185,19 @@ export default function Configuracoes() {
     newCategorias: string[];
   }>({ open: false, file: null, preview: [], newCategorias: [] });
   
+  const [importErrorDialog, setImportErrorDialog] = useState<{
+    open: boolean;
+    errors: string[];
+    fileName: string;
+  }>({ open: false, errors: [], fileName: '' });
+  
+  const [backupDialog, setBackupDialog] = useState<{
+    open: boolean;
+    action: 'export' | 'restore';
+  }>({ open: false, action: 'export' });
+  const [exportingDatabase, setExportingDatabase] = useState(false);
+  const [restoringDatabase, setRestoringDatabase] = useState(false);
+  
   const [passwordDialog, setPasswordDialog] = useState<{ open: boolean }>({ open: false });
   const [changingPassword, setChangingPassword] = useState(false);
   
@@ -195,7 +208,6 @@ export default function Configuracoes() {
       telefone: '',
       email: '',
       endereco: '',
-      validade_orcamento_dias: 30,
     },
   });
 
@@ -266,7 +278,6 @@ export default function Configuracoes() {
         telefone: config.telefone || '',
         email: config.email || '',
         endereco: config.endereco || '',
-        validade_orcamento_dias: config.validade_orcamento_dias || 30,
       });
     }
   }, [config, form]);
@@ -335,7 +346,6 @@ export default function Configuracoes() {
       telefone: data.telefone || undefined,
       email: data.email || undefined,
       endereco: data.endereco || undefined,
-      validade_orcamento_dias: data.validade_orcamento_dias,
     });
   };
 
@@ -433,11 +443,15 @@ export default function Configuracoes() {
     return email?.slice(0, 2).toUpperCase() || 'U';
   };
 
+  // ============================================================================
+  // FUNÇÕES DE LANÇAMENTOS FINANCEIROS (Importar/Exportar/Exportar)
+  // ============================================================================
+
   // Função para baixar modelo de planilha
   const handleDownloadModelo = () => {
     const modelo = [
       {
-        'Data': '2024-01-15',
+        'Data': '15/01/2024',
         'Tipo': 'receita',
         'Categoria': 'Vendas',
         'Descrição': 'Venda de produtos',
@@ -447,7 +461,7 @@ export default function Configuracoes() {
         'Observações': 'Cliente João Silva'
       },
       {
-        'Data': '2024-01-16',
+        'Data': '16/01/2024',
         'Tipo': 'despesa',
         'Categoria': 'Aluguel',
         'Descrição': 'Aluguel do escritório',
@@ -457,7 +471,7 @@ export default function Configuracoes() {
         'Observações': 'Vencimento dia 30'
       },
       {
-        'Data': '2024-01-17',
+        'Data': '17/01/2024',
         'Tipo': 'despesa',
         'Categoria': 'Material de Escritório',
         'Descrição': 'Compra de materiais',
@@ -482,17 +496,22 @@ export default function Configuracoes() {
     }
 
     try {
-      // Formatar dados para exportação no mesmo formato do modelo de importação
-      const exportData = lancamentosFinanceiros.map(lancamento => ({
-        'Data': lancamento.data_lancamento.split('T')[0],
-        'Tipo': lancamento.tipo === 'receita' ? 'receita' : 'despesa',
-        'Categoria': lancamento.categoria?.nome || '',
-        'Descrição': lancamento.descricao || '',
-        'Valor': lancamento.valor,
-        'Status': lancamento.status === 'realizado' ? 'realizado' : 'pendente',
-        'Forma de Pagamento': lancamento.forma_pagamento || '',
-        'Observações': lancamento.observacoes || ''
-      }));
+      // Formatar dados para exportação no mesmo formato do modelo de importação (DD/MM/YYYY)
+      const exportData = lancamentosFinanceiros.map(lancamento => {
+        const dataObj = new Date(lancamento.data_lancamento);
+        const dataFormatada = format(dataObj, 'dd/MM/yyyy');
+        
+        return {
+          'Data': dataFormatada,
+          'Tipo': lancamento.tipo === 'receita' ? 'receita' : 'despesa',
+          'Categoria': lancamento.categoria?.nome || '',
+          'Descrição': lancamento.descricao || '',
+          'Valor': lancamento.valor,
+          'Status': lancamento.status === 'realizado' ? 'realizado' : 'pendente',
+          'Forma de Pagamento': lancamento.forma_pagamento || '',
+          'Observações': lancamento.observacoes || ''
+        };
+      });
 
       // Criar worksheet
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -535,6 +554,8 @@ export default function Configuracoes() {
 
     const reader = new FileReader();
     reader.onload = (e) => {
+      const errors: string[] = [];
+      
       try {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
@@ -542,27 +563,113 @@ export default function Configuracoes() {
         const sheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json<any>(sheet);
 
+        // Validar se há dados
+        if (!jsonData || jsonData.length === 0) {
+          errors.push('O arquivo está vazio ou não possui dados válidos.');
+        }
+
         // Validar estrutura do arquivo
         const requiredColumns = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Status'];
         const firstRow = jsonData[0] || {};
         const missingColumns = requiredColumns.filter(col => !(col in firstRow));
 
         if (missingColumns.length > 0) {
-          toast.error(`Colunas obrigatórias faltando: ${missingColumns.join(', ')}`);
+          errors.push(`Colunas obrigatórias faltando: ${missingColumns.join(', ')}`);
+        }
+
+        // Validar cada linha
+        jsonData.forEach((row: any, index: number) => {
+          const rowNum = index + 2; // +2 porque Excel começa na linha 1 e temos cabeçalho
+          
+          // Validar Data
+          if (!row['Data']) {
+            errors.push(`Linha ${rowNum}: Data é obrigatória`);
+          } else {
+            let dataFormatada = row['Data'];
+            
+            // Tentar converter de DD/MM/YYYY para YYYY-MM-DD
+            if (typeof dataFormatada === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dataFormatada)) {
+              const [dia, mes, ano] = dataFormatada.split('/');
+              dataFormatada = `${ano}-${mes}-${dia}`;
+            } else if (typeof dataFormatada === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dataFormatada)) {
+              // Já está no formato correto
+            } else {
+              errors.push(`Linha ${rowNum}: Data "${row['Data']}" está em formato inválido. Use o formato DD/MM/YYYY (ex: 15/01/2024)`);
+            }
+          }
+
+          // Validar Tipo
+          if (!row['Tipo']) {
+            errors.push(`Linha ${rowNum}: Tipo é obrigatório (deve ser "receita" ou "despesa")`);
+          } else {
+            const tipo = row['Tipo']?.toLowerCase();
+            if (tipo !== 'receita' && tipo !== 'despesa') {
+              errors.push(`Linha ${rowNum}: Tipo "${row['Tipo']}" é inválido. Use "receita" ou "despesa"`);
+            }
+          }
+
+          // Validar Categoria
+          if (!row['Categoria']) {
+            errors.push(`Linha ${rowNum}: Categoria é obrigatória`);
+          }
+
+          // Validar Descrição
+          if (!row['Descrição']) {
+            errors.push(`Linha ${rowNum}: Descrição é obrigatória`);
+          }
+
+          // Validar Valor
+          if (!row['Valor']) {
+            errors.push(`Linha ${rowNum}: Valor é obrigatório`);
+          } else {
+            const valor = Number(row['Valor']);
+            if (isNaN(valor) || valor <= 0) {
+              errors.push(`Linha ${rowNum}: Valor "${row['Valor']}" é inválido. Deve ser um número maior que 0`);
+            }
+          }
+
+          // Validar Status
+          if (!row['Status']) {
+            errors.push(`Linha ${rowNum}: Status é obrigatório (deve ser "realizado" ou "pendente")`);
+          } else {
+            const status = row['Status']?.toLowerCase();
+            if (status !== 'realizado' && status !== 'pendente') {
+              errors.push(`Linha ${rowNum}: Status "${row['Status']}" é inválido. Use "realizado" ou "pendente"`);
+            }
+          }
+        });
+
+        // Se houver erros, mostrar diálogo de erro
+        if (errors.length > 0) {
+          setImportErrorDialog({
+            open: true,
+            errors: errors.slice(0, 50), // Limitar a 50 erros para não travar
+            fileName: file.name
+          });
           return;
         }
 
-        // Processar dados
-        const processedData = jsonData.map((row: any) => ({
-          data: row['Data'],
-          tipo: row['Tipo']?.toLowerCase() === 'receita' ? 'receita' : 'despesa',
-          categoria: row['Categoria'],
-          descricao: row['Descrição'] || '',
-          valor: Number(row['Valor']) || 0,
-          status: row['Status']?.toLowerCase() === 'realizado' ? 'realizado' : 'pendente',
-          forma_pagamento: row['Forma de Pagamento'] || '',
-          observacoes: row['Observações'] || ''
-        }));
+        // Processar dados - converter data de DD/MM/YYYY para YYYY-MM-DD
+        const processedData = jsonData.map((row: any) => {
+          let dataFormatada = row['Data'];
+          
+          // Tentar converter de DD/MM/YYYY para YYYY-MM-DD
+          if (typeof dataFormatada === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dataFormatada)) {
+            const [dia, mes, ano] = dataFormatada.split('/');
+            dataFormatada = `${ano}-${mes}-${dia}`;
+          }
+          
+          return {
+            data: dataFormatada,
+            tipo: row['Tipo']?.toLowerCase() === 'receita' ? 'receita' : 'despesa',
+            categoria: row['Categoria'],
+            descricao: row['Descrição'] || '',
+            valor: Number(row['Valor']) || 0,
+            status: row['Status']?.toLowerCase() === 'realizado' ? 'realizado' : 'pendente',
+            forma_pagamento: row['Forma de Pagamento'] || '',
+            observacoes: row['Observações'] || ''
+          };
+        });
 
         // Identificar novas categorias
         const existingCategorias = categoriasFinanceiras || [];
@@ -581,7 +688,12 @@ export default function Configuracoes() {
         toast.success(`Arquivo carregado com sucesso! ${processedData.length} registros encontrados.`);
       } catch (error) {
         console.error('Erro ao processar arquivo:', error);
-        toast.error('Erro ao processar o arquivo. Verifique se é um arquivo Excel válido.');
+        errors.push('Erro ao processar o arquivo. Verifique se é um arquivo Excel válido (.xlsx ou .xls)');
+        setImportErrorDialog({
+          open: true,
+          errors,
+          fileName: file.name
+        });
       }
     };
 
@@ -663,6 +775,150 @@ export default function Configuracoes() {
     }
   };
 
+  // ============================================================================
+  // FUNÇÕES DE BACKUP/RESTAURAR BANCO DE DADOS
+  // ============================================================================
+
+  // Função para exportar banco de dados completo
+  const handleExportDatabase = async () => {
+    setExportingDatabase(true);
+    try {
+      const tables = [
+        'profiles',
+        'configuracao_empresa',
+        'user_roles',
+        'categorias',
+        'produtos',
+        'clientes',
+        'setores',
+        'orcamentos',
+        'pedidos',
+        'checklist_itens',
+        'checklist_respostas',
+        'categorias_financeiras',
+        'lancamentos_financeiros',
+        'vendas_loja'
+      ];
+
+      let sqlContent = '-- Backup do Banco de Dados\n';
+      sqlContent += '-- Gerado em: ' + new Date().toISOString() + '\n\n';
+
+      for (const table of tables) {
+        const { data, error } = await supabase
+          .from(table)
+          .select('*');
+
+        if (error) {
+          console.error(`Erro ao exportar tabela ${table}:`, error);
+          continue;
+        }
+
+        if (data && data.length > 0) {
+          sqlContent += `-- Tabela: ${table}\n`;
+          sqlContent += `DELETE FROM ${table} WHERE true;\n`;
+
+          for (const row of data) {
+            const columns = Object.keys(row).join(', ');
+            const values = Object.values(row).map(val => {
+              if (val === null) return 'NULL';
+              if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+              if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+              if (val instanceof Date) return `'${val.toISOString()}'`;
+              return val;
+            }).join(', ');
+
+            sqlContent += `INSERT INTO ${table} (${columns}) VALUES (${values});\n`;
+          }
+
+          sqlContent += '\n';
+        }
+      }
+
+      // Criar e baixar arquivo
+      const blob = new Blob([sqlContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dataAtual = new Date().toISOString().split('T')[0];
+      a.download = `backup_banco_dados_${dataAtual}.sql`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('Backup do banco de dados exportado com sucesso!');
+      setBackupDialog({ open: false, action: 'export' });
+    } catch (error) {
+      console.error('Erro ao exportar banco de dados:', error);
+      toast.error('Erro ao exportar banco de dados. Tente novamente.');
+    } finally {
+      setExportingDatabase(false);
+    }
+  };
+
+  // Função para restaurar banco de dados
+  const handleRestoreDatabase = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    setRestoringDatabase(true);
+    try {
+      // Ler o arquivo SQL
+      const content = await file.text();
+      
+      // Criar e baixar um arquivo com instruções de restore
+      const instructions = `
+====================================================================
+INSTRUÇÕES PARA RESTAURAR O BANCO DE DADOS
+====================================================================
+
+Por questões de segurança, a restauração deve ser feita diretamente
+no painel do Supabase. Siga os passos abaixo:
+
+1. Acesse o painel do Supabase: https://supabase.com/dashboard
+2. Selecione o seu projeto
+3. Vá em "SQL Editor" no menu lateral
+4. Copie e cole o conteúdo do arquivo SQL abaixo
+5. Clique em "Run" para executar
+
+====================================================================
+CONTEÚDO DO ARQUIVO SQL
+====================================================================
+
+${content}
+
+====================================================================
+NOTA IMPORTANTE:
+====================================================================
+
+- Esta operação substituirá TODOS os dados existentes no banco
+- Certifique-se de ter um backup atual antes de prosseguir
+- Recomenda-se testar em um ambiente de desenvolvimento primeiro
+- Após a restauração, atualize a página para recarregar os dados
+
+      `.trim();
+
+      // Criar arquivo de instruções
+      const blob = new Blob([instructions], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `instrucoes_restore_${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('Arquivo de instruções baixado! Siga as instruções para restaurar o banco de dados no painel do Supabase.');
+      setBackupDialog({ open: false, action: 'restore' });
+    } catch (error) {
+      console.error('Erro ao processar arquivo de restore:', error);
+      toast.error('Erro ao processar arquivo. Verifique se é um arquivo SQL válido.');
+    } finally {
+      setRestoringDatabase(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -704,7 +960,7 @@ export default function Configuracoes() {
               </TabsTrigger>
               <TabsTrigger value="importar_lancamentos" className="flex items-center gap-2">
                 <FileSpreadsheet className="h-4 w-4" />
-                Importar
+                Limpar/Importar/Exportar
               </TabsTrigger>
             </>
           )}
@@ -798,41 +1054,6 @@ export default function Configuracoes() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    Configurações de Orçamentos
-                  </CardTitle>
-                  <CardDescription>
-                    Define os padrões para novos orçamentos
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <FormField
-                    control={form.control}
-                    name="validade_orcamento_dias"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Validade Padrão (dias)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            min="1" 
-                            max="365"
-                            className="w-32"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Número de dias de validade padrão para novos orçamentos
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CardContent>
-              </Card>
 
               <Card>
                 <CardHeader>
@@ -1409,10 +1630,10 @@ export default function Configuracoes() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileSpreadsheet className="h-5 w-5 text-primary" />
-                  Importar Lançamentos Financeiros
+                  Limpar/Importar/Exportar Lançamentos Financeiros
                 </CardTitle>
                 <CardDescription>
-                  Importe lançamentos financeiros de uma planilha Excel (.xlsx)
+                  Limpe, importe ou exporte lançamentos financeiros de/para uma planilha Excel (.xlsx)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -1454,7 +1675,7 @@ export default function Configuracoes() {
                     <div>
                       <h4 className="font-medium mb-1">Modelo de Planilha</h4>
                       <p className="text-sm text-muted-foreground">
-                        Baixe o modelo para ver a estrutura de dados necessária
+                        Baixe o modelo para ver a estrutura de dados necessária (formato de data: DD/MM/YYYY)
                       </p>
                     </div>
                     <Button
@@ -1485,23 +1706,99 @@ export default function Configuracoes() {
                 </div>
 
                 {/* Upload do arquivo */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium mb-1">Carregar Arquivo</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Selecione um arquivo .xlsx com os lançamentos
-                      </p>
-                    </div>
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                  <div>
+                    <h4 className="font-medium mb-1">Carregar Arquivo</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Selecione um arquivo .xlsx com os lançamentos (formato de data: DD/MM/YYYY)
+                    </p>
                   </div>
                   <input
                     type="file"
+                    ref={importFileInputRef}
                     accept=".xlsx,.xls"
                     onChange={handleFileUpload}
                     disabled={importDialog.open}
-                    className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:text-foreground file:cursor-pointer"
+                    className="hidden"
                   />
+                  <Button
+                    variant="outline"
+                    onClick={() => importFileInputRef.current?.click()}
+                    disabled={importDialog.open}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Escolher Arquivo
+                  </Button>
                 </div>
+
+                {/* Backup e Restore do Banco de Dados */}
+                <Separator />
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-primary" />
+                      Backup e Restore do Banco de Dados
+                    </CardTitle>
+                    <CardDescription>
+                      Faça backup ou restaure o banco de dados completo do sistema
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                      <div>
+                        <h4 className="font-medium mb-1">Exportar Banco de Dados</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Exporte todo o banco de dados para um arquivo SQL
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => setBackupDialog({ open: true, action: 'export' })}
+                        disabled={exportingDatabase}
+                      >
+                        {exportingDatabase ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Exportando...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4 mr-2" />
+                            Exportar SQL
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                      <div>
+                        <h4 className="font-medium mb-1">Restaurar Banco de Dados</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Restaure o banco de dados a partir de um arquivo SQL
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => setBackupDialog({ open: true, action: 'restore' })}
+                        disabled={restoringDatabase}
+                      >
+                        {restoringDatabase ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Restaurando...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Restaurar SQL
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Preview dos dados */}
                 {importDialog.preview.length > 0 && (
@@ -1558,7 +1855,12 @@ export default function Configuracoes() {
                         <tbody>
                           {importDialog.preview.slice(0, 50).map((row, idx) => (
                             <tr key={idx} className="border-t hover:bg-muted/50">
-                              <td className="p-3">{row.data}</td>
+                              <td className="p-3">
+                                {typeof row.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.data)
+                                  ? format(new Date(row.data), 'dd/MM/yyyy')
+                                  : row.data
+                                }
+                              </td>
                               <td className="p-3">
                                 <Badge variant={row.tipo === 'receita' ? 'default' : 'secondary'}>
                                   {row.tipo}
@@ -2174,6 +2476,178 @@ export default function Configuracoes() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Error Dialog */}
+      <Dialog open={importErrorDialog.open} onOpenChange={(open) => setImportErrorDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Erros na Importação
+            </DialogTitle>
+            <DialogDescription>
+              O arquivo "{importErrorDialog.fileName}" contém erros que impedem a importação
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-muted rounded-lg">
+              <h4 className="font-semibold mb-2">Formato Esperado:</h4>
+              <ul className="text-sm space-y-1 text-muted-foreground">
+                <li>• <strong>Data:</strong> DD/MM/YYYY (ex: 15/01/2024)</li>
+                <li>• <strong>Tipo:</strong> "receita" ou "despesa"</li>
+                <li>• <strong>Categoria:</strong> texto livre (ex: Vendas, Aluguel)</li>
+                <li>• <strong>Descrição:</strong> texto livre</li>
+                <li>• <strong>Valor:</strong> número (ex: 1500.00)</li>
+                <li>• <strong>Status:</strong> "realizado" ou "pendente"</li>
+                <li>• <strong>Forma de Pagamento:</strong> opcional (ex: Pix, Cartão)</li>
+                <li>• <strong>Observações:</strong> opcional</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2 text-destructive">
+                Erros Encontrados ({importErrorDialog.errors.length}):
+              </h4>
+              <ScrollArea className="max-h-[300px] border rounded-lg p-4">
+                <ul className="space-y-2 text-sm">
+                  {importErrorDialog.errors.map((error, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-destructive font-bold">•</span>
+                      <span>{error}</span>
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            </div>
+
+            {importErrorDialog.errors.length >= 50 && (
+              <p className="text-sm text-muted-foreground">
+                Mostrando os primeiros 50 erros. Corrija estes e tente novamente.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setImportErrorDialog({ open: false, errors: [], fileName: '' })}
+            >
+              Fechar
+            </Button>
+            <Button onClick={handleDownloadModelo}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar Modelo Correto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Backup/Restore Database Dialog */}
+      <Dialog open={backupDialog.open} onOpenChange={(open) => setBackupDialog(prev => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {backupDialog.action === 'export' ? (
+                <>
+                  <Download className="h-5 w-5 text-primary" />
+                  Exportar Banco de Dados
+                </>
+              ) : (
+                <>
+                  <Upload className="h-5 w-5 text-primary" />
+                  Restaurar Banco de Dados
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {backupDialog.action === 'export'
+                ? 'Exporte todo o banco de dados para um arquivo SQL que pode ser restaurado em outro Supabase'
+                : 'Restaure o banco de dados a partir de um arquivo SQL exportado anteriormente'
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {backupDialog.action === 'export' ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-semibold mb-2">O que será exportado:</h4>
+                  <ul className="text-sm space-y-1 text-muted-foreground">
+                    <li>• Perfis de usuários</li>
+                    <li>• Configurações da empresa</li>
+                    <li>• Funções e permissões de usuários</li>
+                    <li>• Categorias de produtos</li>
+                    <li>• Produtos</li>
+                    <li>• Clientes</li>
+                    <li>• Setores</li>
+                    <li>• Orçamentos</li>
+                    <li>• Pedidos</li>
+                    <li>• Checklist de pedidos</li>
+                    <li>• Categorias financeiras</li>
+                    <li>• Lançamentos financeiros</li>
+                    <li>• Vendas da loja</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <h4 className="font-semibold mb-2 text-yellow-800">Atenção:</h4>
+                  <p className="text-sm text-yellow-700">
+                    O arquivo SQL conterá todos os dados do sistema. Mantenha-o em local seguro e não compartilhe com pessoas não autorizadas.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <h4 className="font-semibold mb-2 text-red-800">⚠️ Aviso Importante:</h4>
+                  <ul className="text-sm space-y-2 text-red-700">
+                    <li>• A restauração substituirá TODOS os dados atuais</li>
+                    <li>• Esta ação NÃO pode ser desfeita</li>
+                    <li>• Certifique-se de ter um backup atual antes de prosseguir</li>
+                    <li>• O arquivo deve estar no formato SQL gerado pelo sistema</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold mb-2 text-blue-800">📋 Como Restaurar:</h4>
+                  <ol className="text-sm space-y-2 text-blue-700 list-decimal list-inside">
+                    <li>Selecione o arquivo SQL exportado anteriormente</li>
+                    <li>Clique em "Baixar Instruções"</li>
+                    <li>Siga as instruções no arquivo baixado para restaurar no painel do Supabase</li>
+                  </ol>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBackupDialog({ open: false, action: 'export' })}
+              disabled={exportingDatabase || restoringDatabase}
+            >
+              Cancelar
+            </Button>
+            {backupDialog.action === 'export' && (
+              <Button
+                onClick={handleExportDatabase}
+                disabled={exportingDatabase}
+              >
+                {exportingDatabase ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Exportando...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar Banco de Dados
+                  </>
+                )}
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

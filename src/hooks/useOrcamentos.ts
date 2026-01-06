@@ -12,7 +12,12 @@ export function useOrcamentos() {
         .select(`
           *,
           cliente:clientes(*),
-          setor:setores_cliente(*)
+          setor:setores_cliente(*),
+          itens:itens_orcamento(
+            *,
+            produto:produtos(*),
+            categoria:categorias(*)
+          )
         `)
         .order('created_at', { ascending: false });
       
@@ -216,6 +221,7 @@ export function useConvertOrcamentoToPedido() {
           cliente_id: orcamento.cliente_id,
           setor_id: orcamento.setor_id,
           orcamento_id: orcamento.id,
+          tipo_pedido: 'evento_cesta',
           data_hora_entrega: dataHoraEntrega,
           status: 'pendente',
           status_pagamento: 'pendente',

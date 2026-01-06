@@ -6,6 +6,7 @@ export type StatusLancamento = 'pendente' | 'realizado' | 'cancelado';
 export type StatusOrcamento = 'pendente' | 'aprovado' | 'recusado' | 'expirado' | 'perdido';
 export type StatusPedido = 'pendente' | 'executado' | 'cancelado';
 export type StatusPagamento = 'pendente' | 'pago';
+export type TipoPedido = 'venda_loja' | 'evento_cesta';
 
 export interface Cliente {
   id: string;
@@ -72,7 +73,6 @@ export interface Orcamento {
   condicoes_comerciais?: string;
   valor_total: number;
   status: StatusOrcamento;
-  validade?: string;
   data_entrega?: string;
   hora_entrega?: string;
   created_at: string;
@@ -103,6 +103,7 @@ export interface Pedido {
   cliente_id: string;
   setor_id?: string;
   orcamento_id?: string;
+  tipo_pedido?: TipoPedido;
   data_hora_entrega: string;
   status: StatusPedido;
   status_pagamento: StatusPagamento;

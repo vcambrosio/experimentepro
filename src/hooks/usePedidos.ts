@@ -84,16 +84,21 @@ export function useCreatePedido() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ 
-      pedido, 
-      itens 
-    }: { 
+    mutationFn: async ({
+      pedido,
+      itens
+    }: {
       pedido: Omit<Pedido, 'id' | 'created_at' | 'updated_at' | 'cliente' | 'setor' | 'orcamento' | 'itens'>;
       itens: Omit<ItemPedido, 'id' | 'pedido_id' | 'created_at' | 'produto' | 'categoria'>[];
     }) => {
+      // Garantir que tipo_pedido tenha um valor padrão se não fornecido
+      const pedidoToInsert = {
+        ...pedido,
+        tipo_pedido: pedido.tipo_pedido || 'evento_cesta',
+      };
       const { data: pedidoData, error: pedidoError } = await supabase
         .from('pedidos')
-        .insert(pedido)
+        .insert(pedidoToInsert)
         .select()
         .single();
       

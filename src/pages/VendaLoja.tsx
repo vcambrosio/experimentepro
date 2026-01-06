@@ -116,12 +116,16 @@ export default function VendaLoja() {
     }
   }, []);
 
-  // Filtra apenas vendas de loja (pedidos com data de entrega igual à data de criação)
+  // Filtra apenas vendas de loja (pedidos com tipo_pedido = 'venda_loja')
   const vendasLoja = pedidos?.filter(pedido => {
-    const dataCriacao = new Date(pedido.created_at);
-    const dataEntrega = new Date(pedido.data_hora_entrega);
-    // Considera como venda de loja se a data de entrega for igual à data de criação (mesmo dia)
-    return dataCriacao.toDateString() === dataEntrega.toDateString();
+    // Se tipo_pedido estiver definido, usa o novo campo
+    if (pedido.tipo_pedido !== undefined) {
+      return pedido.tipo_pedido === 'venda_loja';
+    }
+    // Fallback para pedidos antigos sem tipo_pedido definido
+    // Considera como venda de loja se NÃO tiver setor_id E NÃO tiver orcamento_id
+    // Pedidos com setor ou com orçamento são considerados pedidos de Evento/Cesta
+    return !pedido.setor_id && !pedido.orcamento_id;
   });
 
   const filteredAndSortedPedidos = useMemo(() => {

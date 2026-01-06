@@ -31,7 +31,9 @@ import {
   Move,
   ShoppingBasket,
   Coffee,
-  Package
+  Package,
+  FileText,
+  Trash2
 } from 'lucide-react';
 import {
   DndContext,
@@ -45,8 +47,9 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { useAuth } from '@/contexts/AuthContext';
-import { useUpdatePedido } from '@/hooks/usePedidos';
-import { Pedido, StatusPedido } from '@/types';
+import { useUpdatePedido, useDeletePedido } from '@/hooks/usePedidos';
+import { useDeleteOrcamento } from '@/hooks/useOrcamentos';
+import { Pedido, StatusPedido, Orcamento, StatusOrcamento } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,15 +70,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { PedidoFormDialog } from '@/components/pedidos/PedidoFormDialog';
 import { toast } from 'sonner';
  
 type ViewMode = 'month' | 'week';
+type CalendarItem = Pedido | Orcamento;
  
 interface CalendarioWidgetProps {
   pedidos: Pedido[];
+  orcamentos?: Orcamento[];
   isLoading?: boolean;
 }
  
@@ -91,9 +106,27 @@ const statusLabels: Record<StatusPedido, string> = {
   cancelado: 'Cancelado',
 };
 
+const orcamentoStatusColors: Record<StatusOrcamento, string> = {
+  pendente: 'bg-gray-200 border-gray-400 text-gray-700',
+  aprovado: 'bg-pink-100 border-pink-300 text-pink-700',
+  recusado: 'bg-destructive border-destructive',
+  expirado: 'bg-warning border-warning',
+  perdido: 'bg-muted border-muted',
+};
+
+const orcamentoStatusLabels: Record<StatusOrcamento, string> = {
+  pendente: 'Pendente',
+  aprovado: 'Aprovado',
+  recusado: 'Recusado',
+  expirado: 'Expirado',
+  perdido: 'Perdido',
+};
+ 
 // Função para obter cor e ícone baseado na categoria
-const getCategoriaInfo = (pedido: Pedido) => {
-  if (!pedido.itens || pedido.itens.length === 0) {
+const getCategoriaInfo = (item: CalendarItem) => {
+  const itens = 'itens' in item ? item.itens : undefined;
+  
+  if (!itens || itens.length === 0) {
     return {
       color: 'bg-gray-100 border-gray-300',
       icon: Package,
@@ -101,7 +134,7 @@ const getCategoriaInfo = (pedido: Pedido) => {
     };
   }
   
-  const categoriaNome = pedido.itens[0].categoria?.nome?.toLowerCase() || '';
+  const categoriaNome = itens[0].categoria?.nome?.toLowerCase() || '';
   
   // Cestas - Rosa
   if (categoriaNome.includes('cesta') || categoriaNome.includes('basket')) {
@@ -129,20 +162,73 @@ const getCategoriaInfo = (pedido: Pedido) => {
   };
 };
  
-// Draggable Pedido Component
-function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewMode }) {
+// Função auxiliar para verificar se um item é orçamento
+const isOrcamento = (item: CalendarItem): item is Orcamento => {
+  return 'numero_orcamento' in item;
+};
+ 
+// Função auxiliar para obter a data/hora de entrega de um item
+const getItemDateTime = (item: CalendarItem): Date => {
+  if (isOrcamento(item)) {
+    // Para orçamentos, usa data_entrega se definida, senão usa data_orcamento
+    const dataString = item.data_entrega || item.data_orcamento;
+    const data = dataString ? new Date(dataString) : new Date();
+    if (item.hora_entrega) {
+      const [hours, minutes] = item.hora_entrega.split(':').map(Number);
+      data.setHours(hours, minutes);
+    }
+    return data;
+  } else {
+    return new Date(item.data_hora_entrega);
+  }
+};
+ 
+// Função auxiliar para obter o nome do cliente
+const getItemClienteNome = (item: CalendarItem): string => {
+  if (isOrcamento(item)) {
+    return item.cliente?.nome || '';
+  } else {
+    return item.cliente?.nome || '';
+  }
+};
+ 
+// Função auxiliar para obter o nome do setor
+const getItemSetorNome = (item: CalendarItem): string | undefined => {
+  if (isOrcamento(item)) {
+    return item.setor?.nome_setor;
+  } else {
+    return item.setor?.nome_setor;
+  }
+};
+ 
+// Função auxiliar para obter o valor total de um item
+const getItemValorTotal = (item: CalendarItem): number => {
+  return item.valor_total || 0;
+};
+ 
+// Draggable Item Component
+function DraggableItem({ item, viewMode }: { item: CalendarItem; viewMode: ViewMode }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: pedido.id,
-    data: { pedido },
+    id: item.id,
+    data: { item },
   });
  
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 :1,
   };
   
-  const categoriaInfo = getCategoriaInfo(pedido);
+  const categoriaInfo = getCategoriaInfo(item);
   const CategoriaIcon = categoriaInfo.icon;
+  const isOrcamentoItem = isOrcamento(item);
+  const itemDateTime = getItemDateTime(item);
+  const clienteNome = getItemClienteNome(item);
+  const setorNome = getItemSetorNome(item);
+ 
+  // Se for orçamento pendente, usa cor cinza
+  const bgColor = isOrcamentoItem && item.status === 'pendente' 
+    ? 'bg-gray-200 border-gray-400 text-gray-700' 
+    : categoriaInfo.color;
  
   return (
     <div
@@ -150,18 +236,21 @@ function DraggablePedido({ pedido, viewMode }: { pedido: Pedido; viewMode: ViewM
       style={style}
       className={cn(
         "text-[10px] px-1 py-0.5 rounded truncate border-l-2 cursor-grab active:cursor-grabbing flex items-center gap-0.5",
-        categoriaInfo.color
+        bgColor
       )}
       {...listeners}
       {...attributes}
     >
       <GripVertical className="h-2 w-2 shrink-0 opacity-50" />
+      {isOrcamentoItem && <FileText className="h-2.5 w-2.5 shrink-0" />}
       <CategoriaIcon className="h-2.5 w-2.5 shrink-0" />
       <span className="hidden sm:inline truncate">
-        {format(new Date(pedido.data_hora_entrega), 'HH:mm')} - {pedido.cliente?.nome ? pedido.cliente.nome.split(' ')[0] : ''}{pedido.setor ? ` - ${pedido.setor.nome_setor}` : ''}
+        {isOrcamentoItem && <span className="font-bold mr-1">ORC</span>}
+        {format(itemDateTime, 'HH:mm')} - {clienteNome ? clienteNome.split(' ')[0] : ''}{setorNome ? ` - ${setorNome}` : ''}
       </span>
       <span className="sm:hidden">
-        {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
+        {isOrcamentoItem && <span className="font-bold mr-1">ORC</span>}
+        {format(itemDateTime, 'HH:mm')}
       </span>
     </div>
   );
@@ -173,7 +262,7 @@ function DroppableDay({
   isCurrentMonth, 
   isSelected, 
   viewMode,
-  pedidos,
+  items,
   onDayClick,
   children 
 }: { 
@@ -181,7 +270,7 @@ function DroppableDay({
   isCurrentMonth: boolean;
   isSelected: boolean;
   viewMode: ViewMode;
-  pedidos: Pedido[];
+  items: CalendarItem[];
   onDayClick: () => void;
   children: React.ReactNode;
 }) {
@@ -199,7 +288,7 @@ function DroppableDay({
         !isCurrentMonth && viewMode === 'month' && "bg-muted/30 opacity-50",
         isToday(day) && "border-primary border-2",
         isSelected && "ring-2 ring-primary",
-        pedidos.length > 0 && "hover:bg-accent/50",
+        items.length > 0 && "hover:bg-accent/50",
         isOver && "bg-primary/20 border-primary border-2",
         "hover:border-primary/50"
       )}
@@ -209,9 +298,11 @@ function DroppableDay({
   );
 }
  
-export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) {
+export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioWidgetProps) {
   const { isAdmin } = useAuth();
   const updatePedido = useUpdatePedido();
+  const deletePedido = useDeletePedido();
+  const deleteOrcamento = useDeleteOrcamento();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -228,6 +319,13 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
     newDate: Date | null;
     newTime: string;
   }>({ open: false, pedido: null, newDate: null, newTime: '12:00' });
+  
+  // Delete confirmation state
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    item: CalendarItem | null;
+    type: 'pedido' | 'orcamento';
+  }>({ open: false, item: null, type: 'pedido' });
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -250,33 +348,58 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
     }
   }, [currentDate, viewMode]);
  
-  // Group pedidos by date and sort by time
-  const pedidosByDate = useMemo(() => {
-    const grouped: Record<string, Pedido[]> = {};
+  // Combine pedidos and orcamentos into a single array
+  const allItems = useMemo(() => {
+    const items: CalendarItem[] = [];
+    
+    // Add pedidos (excluding store sales)
     pedidos?.forEach(pedido => {
-      const dateKey = format(new Date(pedido.data_hora_entrega), 'yyyy-MM-dd');
+      const dataCriacao = new Date(pedido.created_at);
+      const dataEntrega = new Date(pedido.data_hora_entrega);
+      // Exclui vendas de loja (onde data de entrega é igual à data de criação)
+      if (dataCriacao.toDateString() !== dataEntrega.toDateString()) {
+        items.push(pedido);
+      }
+    });
+    
+    // Add orcamentos (only those with delivery date)
+    orcamentos?.forEach(orcamento => {
+      if (orcamento.data_entrega) {
+        items.push(orcamento);
+      }
+    });
+    
+    return items;
+  }, [pedidos, orcamentos]);
+ 
+  // Group items by date and sort by time
+  const itemsByDate = useMemo(() => {
+    const grouped: Record<string, CalendarItem[]> = {};
+    allItems.forEach(item => {
+      const itemDateTime = getItemDateTime(item);
+      const dateKey = format(itemDateTime, 'yyyy-MM-dd');
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
       }
-      grouped[dateKey].push(pedido);
+      grouped[dateKey].push(item);
     });
-    
-    // Sort pedidos in each day by time
+     
+    // Sort items in each day by time
     Object.keys(grouped).forEach(dateKey => {
       grouped[dateKey].sort((a, b) =>
-        new Date(a.data_hora_entrega).getTime() - new Date(b.data_hora_entrega).getTime()
+        getItemDateTime(a).getTime() - getItemDateTime(b).getTime()
       );
     });
-    
+     
     return grouped;
-  }, [pedidos]);
+  }, [allItems]);
  
-  // Get pedidos for selected date
-  const selectedDatePedidos = useMemo(() => {
+  // Get items for selected date
+  const selectedDateItems = useMemo(() => {
     if (!selectedDate) return [];
     const dateKey = format(selectedDate, 'yyyy-MM-dd');
-    return pedidosByDate[dateKey] || [];
-  }, [selectedDate, pedidosByDate]);
+    return itemsByDate[dateKey] || [];
+  }, [selectedDate, itemsByDate]);
  
   const navigatePrev = () => {
     if (viewMode === 'month') {
@@ -301,11 +424,10 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
     const dateKey = format(day, 'yyyy-MM-dd');
-    const dayPedidos = pedidosByDate[dateKey] || [];
-    
-    // Sempre abre o diálogo de detalhes se houver pedidos
-    // Isso permite que o usuário escolha entre criar novo ou editar existente
-    if (dayPedidos.length === 0) {
+    const dayItems = itemsByDate[dateKey] || [];
+     
+    // Sempre abre o diálogo de detalhes se houver itens
+    if (dayItems.length === 0) {
       setSelectedPedido(null);
       setFormDialogOpen(true);
     } else {
@@ -337,30 +459,31 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDragPedido(null);
-    
+     
     if (!over) return;
-    
+     
     const pedidoId = active.id as string;
     const newDateKey = over.id as string;
     const pedido = pedidos.find(p => p.id === pedidoId);
     
+    // Only allow dragging pedidos, not orcamentos
     if (!pedido) return;
-    
+     
     const currentDateKey = format(new Date(pedido.data_hora_entrega), 'yyyy-MM-dd');
-    
+     
     // Only show dialog if dropping on a different day
     if (currentDateKey !== newDateKey) {
       // Use parseISO to avoid timezone issues
       const newDate = parseISO(newDateKey);
       const currentTime = format(new Date(pedido.data_hora_entrega), 'HH:mm');
-      
+       
       setRescheduleDialog({
         open: true,
         pedido,
         newDate,
         newTime: currentTime,
       });
-      
+       
       // Automatically navigate to new date
       setCurrentDate(newDate);
     }
@@ -368,7 +491,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
  
   const confirmReschedule = async () => {
     if (!rescheduleDialog.pedido || !rescheduleDialog.newDate) return;
-    
+     
     const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
     const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
  
@@ -377,7 +500,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
         id: rescheduleDialog.pedido.id,
         data_hora_entrega: newDateTime.toISOString(),
       });
-      
+       
       setRescheduleDialog({ open: false, pedido: null, newDate: null, newTime: '12:00' });
     } catch (error) {
       console.error('Error rescheduling:', error);
@@ -386,16 +509,16 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
  
   const openEditAfterReschedule = async () => {
     if (!rescheduleDialog.pedido || !rescheduleDialog.newDate) return;
-    
+      
     const [hours, minutes] = rescheduleDialog.newTime.split(':').map(Number);
     const newDateTime = setMinutes(setHours(rescheduleDialog.newDate, hours), minutes);
- 
+  
     try {
       await updatePedido.mutateAsync({
         id: rescheduleDialog.pedido.id,
         data_hora_entrega: newDateTime.toISOString(),
       });
-      
+        
       // Open edit dialog
       setSelectedPedido(rescheduleDialog.pedido);
       setSelectedDate(rescheduleDialog.newDate);
@@ -403,6 +526,32 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
       setFormDialogOpen(true);
     } catch (error) {
       console.error('Error rescheduling:', error);
+    }
+  };
+  
+  const handleDeleteClick = (item: CalendarItem) => {
+    setDeleteDialog({
+      open: true,
+      item,
+      type: isOrcamento(item) ? 'orcamento' : 'pedido',
+    });
+  };
+  
+  const confirmDelete = async () => {
+    if (!deleteDialog.item) return;
+    
+    try {
+      if (deleteDialog.type === 'pedido') {
+        await deletePedido.mutateAsync(deleteDialog.item.id);
+        toast.success('Pedido excluído com sucesso!');
+      } else {
+        await deleteOrcamento.mutateAsync(deleteDialog.item.id);
+        toast.success('Orçamento excluído com sucesso!');
+      }
+      
+      setDeleteDialog({ open: false, item: null, type: 'pedido' });
+    } catch (error) {
+      console.error('Error deleting:', error);
     }
   };
  
@@ -416,13 +565,14 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
  
   // Summary stats
-  const entregasHoje = pedidosByDate[format(new Date(), 'yyyy-MM-dd')]?.length || 0;
-  const pendentesEsteMes = pedidos?.filter(p => 
-    p.status === 'pendente' && 
-    isSameMonth(new Date(p.data_hora_entrega), currentDate)
+  const entregasHoje = itemsByDate[format(new Date(), 'yyyy-MM-dd')]?.filter(item => !isOrcamento(item)).length || 0;
+  const pendentesEsteMes = allItems.filter(item => 
+    !isOrcamento(item) &&
+    (item as Pedido).status === 'pendente' && 
+    isSameMonth(getItemDateTime(item), currentDate)
   ).length || 0;
-  const totalEsteMes = pedidos?.filter(p => 
-    isSameMonth(new Date(p.data_hora_entrega), currentDate)
+  const totalEsteMes = allItems.filter(item => 
+    isSameMonth(getItemDateTime(item), currentDate)
   ).length || 0;
  
   if (isLoading) {
@@ -545,7 +695,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
             )}>
               {days.map((day, index) => {
                 const dateKey = format(day, 'yyyy-MM-dd');
-                const dayPedidos = pedidosByDate[dateKey] || [];
+                const dayItems = itemsByDate[dateKey] || [];
                 const isCurrentMonth = isSameMonth(day, currentDate);
                 const isSelected = selectedDate && isSameDay(day, selectedDate);
                  
@@ -556,7 +706,7 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                     isCurrentMonth={isCurrentMonth}
                     isSelected={isSelected}
                     viewMode={viewMode}
-                    pedidos={dayPedidos}
+                    items={dayItems}
                     onDayClick={() => handleDayClick(day)}
                   >
                     <div className={cn(
@@ -567,14 +717,14 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                       {format(day, 'd')}
                     </div>
                      
-                    {/* Pedidos indicators */}
+                    {/* Items indicators */}
                     <div className="space-y-0.5" onClick={(e) => e.stopPropagation()}>
-                      {dayPedidos.slice(0, viewMode === 'week' ? 4 : 2).map((pedido) => (
-                        <DraggablePedido key={pedido.id} pedido={pedido} viewMode={viewMode} />
+                      {dayItems.slice(0, viewMode === 'week' ? 4 : 2).map((item) => (
+                        <DraggableItem key={item.id} item={item} viewMode={viewMode} />
                       ))}
-                      {dayPedidos.length > (viewMode === 'week' ? 4 : 2) && (
+                      {dayItems.length > (viewMode === 'week' ? 4 : 2) && (
                         <div className="text-[10px] text-muted-foreground text-center">
-                          +{dayPedidos.length - (viewMode === 'week' ? 4 : 2)}
+                          +{dayItems.length - (viewMode === 'week' ? 4 : 2)}
                         </div>
                       )}
                     </div>
@@ -618,32 +768,45 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
           
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-3 pr-4">
-              {selectedDatePedidos
-                .sort((a, b) => new Date(a.data_hora_entrega).getTime() - new Date(b.data_hora_entrega).getTime())
-                .map((pedido) => {
-                  const categoriaInfo = getCategoriaInfo(pedido);
+              {selectedDateItems
+                .sort((a, b) => getItemDateTime(a).getTime() - getItemDateTime(b).getTime())
+                .map((item) => {
+                  const isOrcamentoItem = isOrcamento(item);
+                  const categoriaInfo = getCategoriaInfo(item);
                   const CategoriaIcon = categoriaInfo.icon;
-                  
+                  const itemDateTime = getItemDateTime(item);
+                  const clienteNome = getItemClienteNome(item);
+                  const setorNome = getItemSetorNome(item);
+                  const valorTotal = getItemValorTotal(item);
+                   
                   return (
                     <div
-                      key={pedido.id}
+                      key={item.id}
                       className={cn(
                         "p-4 rounded-lg border-l-4 cursor-pointer hover:bg-accent/50 transition-colors",
-                        statusColors[pedido.status],
+                        isOrcamentoItem 
+                          ? orcamentoStatusColors[item.status]
+                          : statusColors[(item as Pedido).status],
                         "bg-card"
                       )}
-                      onClick={() => handleEditPedido(pedido)}
+                      onClick={() => !isOrcamentoItem && handleEditPedido(item as Pedido)}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">
-                              {format(new Date(pedido.data_hora_entrega), 'HH:mm')}
+                              {format(itemDateTime, 'HH:mm')}
                             </span>
-                            <Badge variant="outline" className="text-xs">
-                              {statusLabels[pedido.status]}
-                            </Badge>
+                            {isOrcamentoItem ? (
+                              <Badge variant="outline" className="text-xs">
+                                {orcamentoStatusLabels[item.status]}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                {statusLabels[(item as Pedido).status]}
+                              </Badge>
+                            )}
                             <Badge variant="outline" className={cn("text-xs", categoriaInfo.color)}>
                               <CategoriaIcon className="h-3 w-3 mr-1" />
                               {categoriaInfo.label}
@@ -652,43 +815,53 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
                          
                           <div className="flex items-center gap-2 text-sm">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            <span>{pedido.cliente?.nome || ''}</span>
+                            <span>{clienteNome}</span>
                           </div>
                          
-                          {pedido.setor && (
+                          {setorNome && (
                             <p className="text-xs text-muted-foreground ml-6">
-                              {pedido.setor.nome_setor}
+                              {setorNome}
                             </p>
                           )}
                         </div>
-                      
-                      <div className="flex flex-col items-end gap-2">
-                        {isAdmin && (
-                          <>
+                       
+                        <div className="flex flex-col items-end gap-2">
+                          {isAdmin && (
                             <p className="font-semibold text-primary">
-                              {formatCurrency(pedido.valor_total)}
+                              {formatCurrency(valorTotal)}
                             </p>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-xs",
-                                pedido.status_pagamento === 'pago'
-                                  ? 'bg-success/20 text-success-foreground'
-                                  : 'bg-warning/20 text-warning-foreground'
-                              )}
+                          )}
+                          <div className="flex gap-1">
+                            {!isOrcamentoItem && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditPedido(item as Pedido);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(item);
+                              }}
                             >
-                              {pedido.status_pagamento === 'pago' ? 'Pago' : 'A Pagar'}
-                            </Badge>
-                          </>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           </ScrollArea>
         </DialogContent>
@@ -752,6 +925,37 @@ export function CalendarioWidget({ pedidos, isLoading }: CalendarioWidgetProps) 
         pedido={selectedPedido}
         initialDate={selectedDate || undefined}
       />
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              {deleteDialog.type === 'pedido' ? 'Excluir Pedido' : 'Excluir Orçamento'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este {deleteDialog.type === 'pedido' ? 'pedido' : 'orçamento'}? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleteDialog.type === 'pedido' ? deletePedido.isPending : deleteOrcamento.isPending}
+            >
+              {deleteDialog.type === 'pedido' && deletePedido.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : deleteDialog.type === 'orcamento' && deleteOrcamento.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Excluir'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

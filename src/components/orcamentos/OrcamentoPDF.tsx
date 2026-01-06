@@ -158,14 +158,6 @@ const styles = StyleSheet.create({
     borderTopColor: '#eeeeee',
     paddingTop: 10,
   },
-  validityBadge: {
-    backgroundColor: '#FFB380',
-    padding: '4 8',
-    borderRadius: 4,
-    fontSize: 10,
-    color: '#333333',
-    alignSelf: 'flex-start',
-  },
   statusBadge: {
     padding: '4 8',
     borderRadius: 4,
@@ -231,15 +223,8 @@ const Header = ({ orcamento, empresaTelefone, empresaEmail, empresaEndereco, emp
           {empresaEndereco && <Text style={styles.companyInfo}>{empresaEndereco}</Text>}
           <View style={{ marginTop: 10 }}>
             <Text style={styles.title}>ORÇAMENTO</Text>
-            <Text style={styles.subtitle}>{orcamento.numero_orcamento}</Text>
-            {orcamento.validade && (
-              <View style={styles.badgeRow}>
-                <View style={styles.validityBadge}>
-                  <Text>Válido até: {format(new Date(orcamento.validade), 'dd/MM/yyyy')}</Text>
-                </View>
-              </View>
-            )}
-          </View>
+              <Text style={styles.subtitle}>{orcamento.numero_orcamento}</Text>
+            </View>
         </View>
       </View>
     </View>

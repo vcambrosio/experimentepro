@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2, FileText, UserPlus, Pencil } from 'lucide-react';
+import { CalendarIcon, Plus, Trash2, Loader2, FileText, UserPlus, Pencil, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientes, useSetoresCliente, useCreateCliente } from '@/hooks/useClientes';
 import { useProdutos } from '@/hooks/useProdutos';
@@ -22,6 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -74,6 +84,8 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
   const [itens, setItens] = useState<ItemForm[]>([]);
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [valorUnitarioDisplay, setValorUnitarioDisplay] = useState('');
+  const [itemToRemoveIndex, setItemToRemoveIndex] = useState<number | null>(null);
   const [newItem, setNewItem] = useState<ItemForm>({
     produto_id: '',
     categoria_id: '',
@@ -245,6 +257,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
       valor_unitario: 0,
       detalhes: '',
     });
+    setValorUnitarioDisplay('');
   };
 
   const handleSaveItem = () => {
@@ -272,6 +285,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
       valor_unitario: 0,
       detalhes: '',
     });
+    setValorUnitarioDisplay('');
     setEditingItemIndex(null);
     setShowAddForm(false);
   };
@@ -279,11 +293,20 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
   const handleEditItem = (index: number) => {
     setEditingItemIndex(index);
     setShowAddForm(false);
-    setNewItem({ ...itens[index] });
+    const item = itens[index];
+    setNewItem({ ...item });
+    setValorUnitarioDisplay(item.valor_unitario.toFixed(2).replace('.', ','));
   };
 
   const handleRemoveItem = (index: number) => {
-    setItens(itens.filter((_, i) => i !== index));
+    setItemToRemoveIndex(index);
+  };
+
+  const confirmRemoveItem = () => {
+    if (itemToRemoveIndex !== null) {
+      setItens(itens.filter((_, i) => i !== itemToRemoveIndex));
+      setItemToRemoveIndex(null);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -297,6 +320,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
       valor_unitario: 0,
       detalhes: '',
     });
+    setValorUnitarioDisplay('');
   };
 
   const updateNewItem = (field: keyof ItemForm, value: string | number) => {
@@ -308,7 +332,12 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
         updated.categoria_id = produto.categoria_id;
         updated.valor_unitario = produto.valor_venda;
         updated.descricao_customizada = produto.descricao_padrao || '';
+        setValorUnitarioDisplay(produto.valor_venda.toFixed(2).replace('.', ','));
       }
+    }
+    
+    if (field === 'valor_unitario') {
+      setValorUnitarioDisplay(value.toString().replace('.', ','));
     }
     
     setNewItem(updated);
@@ -328,6 +357,7 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
     const pedidoData = {
       cliente_id: clienteId,
       setor_id: setorId || null,
+      tipo_pedido: 'evento_cesta' as const,
       data_hora_entrega: dataHoraEntrega.toISOString(),
       status: 'pendente' as const,
       status_pagamento: 'pendente' as const,
@@ -444,18 +474,33 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
   
             <div className="space-y-2">
               <Label htmlFor="setor">Setor</Label>
-              <Select value={setorId} onValueChange={setSetorId} disabled={!clienteId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o setor (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {setores?.map((setor) => (
-                    <SelectItem key={setor.id} value={setor.id}>
-                      {setor.nome_setor} {setor.responsavel && `- ${setor.responsavel}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select value={setorId} onValueChange={setSetorId} disabled={!clienteId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o setor (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {setores?.map((setor) => (
+                        <SelectItem key={setor.id} value={setor.id}>
+                          {setor.nome_setor} {setor.responsavel && `- ${setor.responsavel}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {setorId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setSetorId('')}
+                    title="Limpar seleção"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
   
@@ -482,7 +527,6 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                     selected={dataEntrega}
                     onSelect={setDataEntrega}
                     locale={ptBR}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                     className="pointer-events-auto"
                   />
                 </PopoverContent>
@@ -576,18 +620,16 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Valor Unit.</Label>
+                      <Label>Valor Unitário *</Label>
                       <Input
                         type="text"
-                        step="0.01"
-                        min="0"
-                        value={formatCurrency(newItem.valor_unitario)}
+                        inputMode="decimal"
+                        value={valorUnitarioDisplay}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/[^\d,.-]/g, '');
-                          const numValue = parseFloat(value.replace(',', '.')) || 0;
-                          updateNewItem('valor_unitario', numValue);
+                          const value = e.target.value.replace(',', '.');
+                          updateNewItem('valor_unitario', parseFloat(value) || 0);
                         }}
-                        placeholder="R$ 0,00"
+                        placeholder="0,00"
                       />
                     </div>
                   </div>
@@ -664,6 +706,27 @@ export function PedidoFormDialog({ open, onOpenChange, pedido, initialDate, newC
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
+
+        {/* Dialog de confirmação para remover item */}
+        <AlertDialog open={itemToRemoveIndex !== null} onOpenChange={() => setItemToRemoveIndex(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir item do pedido?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir este item do pedido? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmRemoveItem}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
                       </div>
                     </div>
                   ))}

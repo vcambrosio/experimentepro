@@ -372,11 +372,6 @@ export default function Orcamentos() {
                       <p className="font-medium">
                         {format(new Date(orcamento.data_orcamento), 'dd/MM/yyyy', { locale: ptBR })}
                       </p>
-                      {orcamento.validade && (
-                        <p className="text-sm text-muted-foreground">
-                          Válido até: {format(new Date(orcamento.validade), 'dd/MM/yyyy', { locale: ptBR })}
-                        </p>
-                      )}
                     </div>
                   </TableCell>
                   <TableCell>

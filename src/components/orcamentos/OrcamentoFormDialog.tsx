@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format, addDays } from 'date-fns';
-import { CalendarIcon, Plus, Trash2, Loader2, UserPlus, Pencil } from 'lucide-react';
+import { CalendarIcon, Plus, Trash2, Loader2, UserPlus, Pencil, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClientes, useSetoresCliente } from '@/hooks/useClientes';
 import { useProdutos } from '@/hooks/useProdutos';
@@ -19,6 +19,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -63,7 +73,6 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
   const [clienteId, setClienteId] = useState('');
   const [setorId, setSetorId] = useState('');
   const [dataOrcamento, setDataOrcamento] = useState<Date>(new Date());
-  const [validade, setValidade] = useState<Date | undefined>(addDays(new Date(), 30));
   const [dataEntrega, setDataEntrega] = useState<Date | undefined>(undefined);
   const [horaEntrega, setHoraEntrega] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -71,6 +80,8 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
   const [itens, setItens] = useState<ItemForm[]>([]);
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [valorUnitarioDisplay, setValorUnitarioDisplay] = useState('');
+  const [itemToRemoveIndex, setItemToRemoveIndex] = useState<number | null>(null);
   const [newItem, setNewItem] = useState<ItemForm>({
     produto_id: '',
     categoria_id: '',
@@ -97,7 +108,6 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
         setClienteId(orcamento.cliente_id);
         setSetorId(orcamento.setor_id || '');
         setDataOrcamento(new Date(orcamento.data_orcamento));
-        setValidade(orcamento.validade ? new Date(orcamento.validade) : undefined);
         setDataEntrega(orcamento.data_entrega ? new Date(orcamento.data_entrega) : undefined);
         setHoraEntrega(orcamento.hora_entrega || '');
         setDescricao(orcamento.descricao || '');
@@ -130,7 +140,6 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
     setClienteId('');
     setSetorId('');
     setDataOrcamento(new Date());
-    setValidade(addDays(new Date(), 30));
     setDataEntrega(undefined);
     setHoraEntrega('');
     setDescricao('');
@@ -154,7 +163,6 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       clienteId,
       setorId,
       dataOrcamento: dataOrcamento.toISOString(),
-      validade: validade?.toISOString(),
       dataEntrega: dataEntrega?.toISOString(),
       horaEntrega,
       descricao,
@@ -177,7 +185,6 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
           if (state.clienteId) setClienteId(state.clienteId);
           if (state.setorId) setSetorId(state.setorId);
           if (state.dataOrcamento) setDataOrcamento(new Date(state.dataOrcamento));
-          if (state.validade) setValidade(new Date(state.validade));
           if (state.dataEntrega) setDataEntrega(new Date(state.dataEntrega));
           if (state.horaEntrega) setHoraEntrega(state.horaEntrega);
           if (state.descricao) setDescricao(state.descricao);
@@ -231,6 +238,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       valor_unitario: 0,
       observacoes: '',
     });
+    setValorUnitarioDisplay('');
     setEditingItemIndex(null);
     setShowAddForm(false);
   };
@@ -238,11 +246,20 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
   const handleEditItem = (index: number) => {
     setEditingItemIndex(index);
     setShowAddForm(false);
-    setNewItem({ ...itens[index] });
+    const item = itens[index];
+    setNewItem({ ...item });
+    setValorUnitarioDisplay(item.valor_unitario.toFixed(2).replace('.', ','));
   };
 
   const handleRemoveItem = (index: number) => {
-    setItens(itens.filter((_, i) => i !== index));
+    setItemToRemoveIndex(index);
+  };
+
+  const confirmRemoveItem = () => {
+    if (itemToRemoveIndex !== null) {
+      setItens(itens.filter((_, i) => i !== itemToRemoveIndex));
+      setItemToRemoveIndex(null);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -256,6 +273,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       valor_unitario: 0,
       observacoes: '',
     });
+    setValorUnitarioDisplay('');
   };
 
   const updateNewItem = (field: keyof ItemForm, value: string | number) => {
@@ -267,7 +285,12 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
         updated.categoria_id = produto.categoria_id;
         updated.valor_unitario = produto.valor_venda;
         updated.descricao_customizada = produto.descricao_padrao || '';
+        setValorUnitarioDisplay(produto.valor_venda.toFixed(2).replace('.', ','));
       }
+    }
+    
+    if (field === 'valor_unitario') {
+      setValorUnitarioDisplay(value.toString().replace('.', ','));
     }
     
     setNewItem(updated);
@@ -289,7 +312,6 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       condicoes_comerciais: condicoesComerciais || null,
       valor_total: calcularTotal(itens),
       status: 'pendente' as const,
-      validade: validade ? validade.toISOString().split('T')[0] : null,
       data_entrega: dataEntrega ? dataEntrega.toISOString().split('T')[0] : null,
       hora_entrega: horaEntrega || null,
       created_by: user?.id || '',
@@ -375,74 +397,59 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
 
             <div className="space-y-2">
               <Label htmlFor="setor">Setor</Label>
-              <Select value={setorId} onValueChange={setSetorId} disabled={!clienteId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o setor (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {setores?.map((setor) => (
-                    <SelectItem key={setor.id} value={setor.id}>
-                      {setor.nome_setor} {setor.responsavel && `- ${setor.responsavel}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select value={setorId} onValueChange={setSetorId} disabled={!clienteId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o setor (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {setores?.map((setor) => (
+                        <SelectItem key={setor.id} value={setor.id}>
+                          {setor.nome_setor} {setor.responsavel && `- ${setor.responsavel}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {setorId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setSetorId('')}
+                    title="Limpar seleção"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Datas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Data do Orçamento</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(dataOrcamento, 'PPP', { locale: ptBR })}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dataOrcamento}
-                    onSelect={(date) => date && setDataOrcamento(date)}
-                    locale={ptBR}
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Validade</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !validade && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {validade ? format(validade, 'PPP', { locale: ptBR }) : 'Selecione a validade'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={validade}
-                    onSelect={setValidade}
-                    locale={ptBR}
-                    disabled={(date) => date < new Date()}
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+          <div className="space-y-2">
+            <Label>Data do Orçamento</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(dataOrcamento, 'PPP', { locale: ptBR })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dataOrcamento}
+                  onSelect={(date) => date && setDataOrcamento(date)}
+                  locale={ptBR}
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Data e Hora de Entrega */}
@@ -468,7 +475,6 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                     selected={dataEntrega}
                     onSelect={setDataEntrega}
                     locale={ptBR}
-                    disabled={(date) => date < new Date()}
                     className="pointer-events-auto"
                   />
                 </PopoverContent>
@@ -560,18 +566,16 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Valor Unit.</Label>
+                      <Label>Valor Unitário *</Label>
                       <Input
                         type="text"
-                        step="0.01"
-                        min="0"
-                        value={formatCurrency(newItem.valor_unitario)}
+                        inputMode="decimal"
+                        value={valorUnitarioDisplay}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/[^\d,.-]/g, '');
-                          const numValue = parseFloat(value.replace(',', '.')) || 0;
-                          updateNewItem('valor_unitario', numValue);
+                          const value = e.target.value.replace(',', '.');
+                          updateNewItem('valor_unitario', parseFloat(value) || 0);
                         }}
-                        placeholder="R$ 0,00"
+                        placeholder="0,00"
                       />
                     </div>
                   </div>
@@ -666,6 +670,27 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
             )}
           </div>
         </div>
+
+        {/* Dialog de confirmação para remover item */}
+        <AlertDialog open={itemToRemoveIndex !== null} onOpenChange={() => setItemToRemoveIndex(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir item do orçamento?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir este item do orçamento? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmRemoveItem}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
