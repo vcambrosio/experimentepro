@@ -81,6 +81,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [valorUnitarioDisplay, setValorUnitarioDisplay] = useState('');
+  const [quantidadeDisplay, setQuantidadeDisplay] = useState('');
   const [itemToRemoveIndex, setItemToRemoveIndex] = useState<number | null>(null);
   const [newItem, setNewItem] = useState<ItemForm>({
     produto_id: '',
@@ -211,6 +212,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       valor_unitario: 0,
       observacoes: '',
     });
+    setQuantidadeDisplay('1');
   };
 
   const handleSaveItem = () => {
@@ -249,6 +251,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
     const item = itens[index];
     setNewItem({ ...item });
     setValorUnitarioDisplay(item.valor_unitario.toFixed(2).replace('.', ','));
+    setQuantidadeDisplay(item.quantidade.toString());
   };
 
   const handleRemoveItem = (index: number) => {
@@ -274,6 +277,7 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
       observacoes: '',
     });
     setValorUnitarioDisplay('');
+    setQuantidadeDisplay('1');
   };
 
   const updateNewItem = (field: keyof ItemForm, value: string | number) => {
@@ -291,6 +295,10 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
     
     if (field === 'valor_unitario') {
       setValorUnitarioDisplay(value.toString().replace('.', ','));
+    }
+    
+    if (field === 'quantidade') {
+      setQuantidadeDisplay(value.toString());
     }
     
     setNewItem(updated);
@@ -581,10 +589,25 @@ export function OrcamentoFormDialog({ open, onOpenChange, orcamento, newClienteI
                     <div className="space-y-2">
                       <Label>Quantidade *</Label>
                       <Input
-                        type="number"
-                        min="1"
-                        value={newItem.quantidade}
-                        onChange={(e) => updateNewItem('quantidade', parseInt(e.target.value) || 1)}
+                        type="text"
+                        inputMode="numeric"
+                        value={quantidadeDisplay}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setQuantidadeDisplay(value);
+                          const num = parseInt(value);
+                          if (!isNaN(num) && num > 0) {
+                            updateNewItem('quantidade', num);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = e.target.value;
+                          const num = parseInt(value);
+                          if (isNaN(num) || num < 1) {
+                            setQuantidadeDisplay('1');
+                            updateNewItem('quantidade', 1);
+                          }
+                        }}
                       />
                     </div>
                     <div className="space-y-2">

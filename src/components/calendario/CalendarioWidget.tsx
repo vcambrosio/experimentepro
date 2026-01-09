@@ -33,7 +33,9 @@ import {
   Coffee,
   Package,
   FileText,
-  Trash2
+  Trash2,
+  Check,
+  Banknote
 } from 'lucide-react';
 import {
   DndContext,
@@ -227,16 +229,20 @@ function DraggableItem({ item, viewMode }: { item: CalendarItem; viewMode: ViewM
   const setorNome = getItemSetorNome(item);
  
   // Se for orçamento pendente, usa cor cinza
-  const bgColor = isOrcamentoItem && item.status === 'pendente' 
-    ? 'bg-gray-200 border-gray-400 text-gray-700' 
+  const bgColor = isOrcamentoItem && item.status === 'pendente'
+    ? 'bg-gray-200 border-gray-400 text-gray-700'
     : categoriaInfo.color;
  
+  // Verifica status de execução e pagamento (apenas para pedidos)
+  const isExecutado = !isOrcamentoItem && (item as Pedido).status === 'executado';
+  const isPago = !isOrcamentoItem && (item as Pedido).status_pagamento === 'pago';
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "text-[10px] px-1 py-0.5 rounded truncate border-l-2 cursor-grab active:cursor-grabbing flex items-center gap-0.5",
+        "text-[10px] px-1 py-0.5 rounded truncate border-l-2 cursor-grab active:cursor-grabbing flex items-center gap-0.5 relative",
         bgColor
       )}
       {...listeners}
@@ -253,6 +259,15 @@ function DraggableItem({ item, viewMode }: { item: CalendarItem; viewMode: ViewM
         {isOrcamentoItem && <span className="font-bold mr-1">ORC</span>}
         {format(itemDateTime, 'HH:mm')}
       </span>
+      {/* Indicadores de status */}
+      <div className="flex items-center gap-0.5 ml-auto shrink-0">
+        {isExecutado && (
+          <Check className="h-3 w-3 text-green-600" />
+        )}
+        {isPago && (
+          <Banknote className="h-3 w-3 text-green-600" />
+        )}
+      </div>
     </div>
   );
 }
@@ -772,6 +787,10 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
                   const clienteNome = getItemClienteNome(item);
                   const setorNome = getItemSetorNome(item);
                   const valorTotal = getItemValorTotal(item);
+                  
+                  // Verifica status de execução e pagamento (apenas para pedidos)
+                  const isExecutado = !isOrcamentoItem && (item as Pedido).status === 'executado';
+                  const isPago = !isOrcamentoItem && (item as Pedido).status_pagamento === 'pago';
                    
                   return (
                     <div
@@ -820,11 +839,24 @@ export function CalendarioWidget({ pedidos, orcamentos, isLoading }: CalendarioW
                         </div>
                        
                         <div className="flex flex-col items-end gap-2">
-                          {isAdmin && (
-                            <p className="font-semibold text-primary">
-                              {formatCurrency(valorTotal)}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {isAdmin && (
+                              <p className="font-semibold text-primary">
+                                {formatCurrency(valorTotal)}
+                              </p>
+                            )}
+                            {/* Indicadores de status */}
+                            {!isOrcamentoItem && (
+                              <div className="flex items-center gap-1">
+                                {isExecutado && (
+                                  <Check className="h-5 w-5 text-green-600" />
+                                )}
+                                {isPago && (
+                                  <Banknote className="h-5 w-5 text-green-600" />
+                                )}
+                              </div>
+                            )}
+                          </div>
                           <div className="flex gap-1">
                             {!isOrcamentoItem && (
                               <Button
