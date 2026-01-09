@@ -3,7 +3,7 @@
 
 ---
 
-## 1. Visão Geral do Produto
+## 1. Visão Geral do Produto.
 
 ### 1.1 Objetivo
 Desenvolver um sistema web completo para gestão de agendamento, vendas e controle operacional de produtos e serviços alimentícios, com foco em coffee breaks, bolos, produtos congelados e cestas de café da manhã.
